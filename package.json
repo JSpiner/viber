@@ -1,0 +1,74 @@
+{
+  "name": "viber",
+  "version": "1.0.0",
+  "description": "Claude conversation data analyzer",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "build": "electron-builder",
+    "dist": "electron-builder --mac",
+    "dist:dmg": "electron-builder --mac dmg",
+    "dist:zip": "electron-builder --mac zip"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.12",
+    "jest": "^30.0.5"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.0",
+    "electron-store": "^10.1.0"
+  },
+  "build": {
+    "appId": "com.viber.app",
+    "productName": "Viber",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!**/*.{map,md}",
+      "!dist/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/.bin"
+    ],
+    "mac": {
+      "icon": "resources/icon.png",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}

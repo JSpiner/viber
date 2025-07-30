@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viber</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <img src="resources/icon.png" alt="Viber Logo" class="app-logo">
+        <h1 class="app-title">Viber</h1>
+      </div>
+      
+      <div class="nav-items">
+        <button class="nav-item active" data-tab="now">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span class="nav-label">Now</span>
+        </button>
+        
+        <button class="nav-item" data-tab="statistics">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span class="nav-label">Statistics</span>
+        </button>
+        
+        <button class="nav-item" data-tab="session-log">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span class="nav-label">Session Log</span>
+        </button>
+        
+        <button class="nav-item" data-tab="settings">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m4.22-10.22l4.24 4.24m-4.24 4.24l4.24 4.24M20 12h-6m-6 0H2m10.22-4.22L7.98 3.54m4.24 4.24L7.98 20.46"></path>
+          </svg>
+          <span class="nav-label">Settings</span>
+        </button>
+      </div>
+    </nav>
+    
+    <main class="main-content">
+      <div id="now" class="content-panel active">
+        <div class="panel-header">
+          <h2>Now</h2>
+          <div class="now-controls">
+            <select id="subscriptionTier" class="tier-selector">
+              <option value="pro">Pro ($20/month)</option>
+              <option value="max5x">Max 5x ($100/month)</option>
+              <option value="max20x">Max 20x ($200/month)</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="now-container">
+            <!-- Recent Usage Section -->
+            <div class="usage-card recent-usage">
+              <h3>Recent Usage (10 minutes)</h3>
+              <div class="usage-metrics">
+                <div class="metric">
+                  <div class="metric-label">Total Tokens</div>
+                  <div class="metric-value" id="recentTokens">0</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Rate</div>
+                  <div class="metric-value">
+                    <span id="tokensPerMinute">0 tpm</span>
+                    <span class="trend-indicator" id="usageTrend">→</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5-Hour Window Section -->
+            <div class="usage-card five-hour-window">
+              <h3>Token Limit: 5 hour window</h3>
+              <div class="window-content">
+                <div class="usage-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">Session Started</span>
+                    <span class="stat-value" id="fiveHourSessionStart">--</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Effective Used</span>
+                    <span class="stat-value" id="fiveHourUsed">0</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Limit</span>
+                    <span class="stat-value" id="fiveHourLimit">0</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Remaining</span>
+                    <span class="stat-value" id="fiveHourRemaining">0</span>
+                  </div>
+                  <div class="stat-row cache-breakdown">
+                    <span class="stat-label">Cache Savings</span>
+                    <span class="stat-value" id="fiveHourCacheSavings">0</span>
+                  </div>
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar-wrapper">
+                    <div class="progress-bar safe" id="fiveHourProgress"></div>
+                  </div>
+                  <div class="progress-info">
+                    <span id="fiveHourPercentage">0%</span>
+                    <span class="reset-time">Reset in <span id="fiveHourReset">--</span></span>
+                  </div>
+                </div>
+                <div class="chart-container small">
+                  <canvas id="fiveHourChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Weekly Window Section -->
+            <div class="usage-card weekly-window">
+              <h3>Token Limit: weekly window</h3>
+              <div class="window-content">
+                <div class="usage-stats">
+                  <div class="stat-row">
+                    <span class="stat-label">Session Started</span>
+                    <span class="stat-value" id="weeklySessionStart">--</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Effective Used</span>
+                    <span class="stat-value" id="weeklyUsed">0</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Limit</span>
+                    <span class="stat-value" id="weeklyLimit">0</span>
+                  </div>
+                  <div class="stat-row">
+                    <span class="stat-label">Remaining</span>
+                    <span class="stat-value" id="weeklyRemaining">0</span>
+                  </div>
+                  <div class="stat-row cache-breakdown">
+                    <span class="stat-label">Cache Savings</span>
+                    <span class="stat-value" id="weeklyCacheSavings">0</span>
+                  </div>
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar-wrapper">
+                    <div class="progress-bar safe" id="weeklyProgress"></div>
+                  </div>
+                  <div class="progress-info">
+                    <span id="weeklyPercentage">0%</span>
+                    <span class="reset-time">Reset in <span id="weeklyReset">--</span></span>
+                  </div>
+                </div>
+                <div class="chart-container medium">
+                  <canvas id="weeklyChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="statistics" class="content-panel">
+        <div class="panel-header">
+          <h2>Statistics</h2>
+          <div class="stats-controls">
+            <div class="view-toggle">
+              <button class="toggle-btn active" data-view="daily">Daily Usage</button>
+              <button class="toggle-btn" data-view="session">Session Usage</button>
+            </div>
+            <div class="date-range">
+              <input type="date" id="startDate" class="date-input">
+              <span class="date-separator">to</span>
+              <input type="date" id="endDate" class="date-input">
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="stats-container">
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+              <div class="summary-card">
+                <div class="card-label">Total Tokens</div>
+                <div class="card-value" id="totalTokens">0</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">Total Cost</div>
+                <div class="card-value" id="totalCost">$0.00</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">Most Used Model</div>
+                <div class="card-value" id="mostUsedModel">-</div>
+              </div>
+            </div>
+
+            <!-- Daily View -->
+            <div id="dailyView" class="view-content active">
+              <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+              </div>
+              <div class="daily-details" id="dailyDetails"></div>
+            </div>
+
+            <!-- Session View -->
+            <div id="sessionView" class="view-content">
+              <div class="session-timeline-container">
+                <h3>Session Timeline</h3>
+                <div class="timeline-chart-container">
+                  <canvas id="timelineChart"></canvas>
+                </div>
+              </div>
+              <div class="session-list" id="sessionList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="session-log" class="content-panel">
+        <div class="panel-header">
+          <h2>Session Log</h2>
+        </div>
+        <div class="panel-body">
+          <p>Session logs and history will be displayed here.</p>
+        </div>
+      </div>
+      
+      <div id="settings" class="content-panel">
+        <div class="panel-header">
+          <h2>Settings</h2>
+        </div>
+        <div class="panel-body">
+          <div class="settings-container">
+            <!-- Status Bar Settings -->
+            <div class="settings-section">
+              <h3>Status Bar</h3>
+              <div class="settings-group">
+                <div class="setting-item">
+                  <label class="setting-label">
+                    <input type="checkbox" id="statusBarEnabled" class="setting-checkbox">
+                    <span>Show in status bar</span>
+                  </label>
+                  <p class="setting-description">Display token usage monitor in macOS menu bar</p>
+                </div>
+                
+                <div class="setting-item">
+                  <label class="setting-label" for="displayMode">Display mode</label>
+                  <select id="displayMode" class="setting-select status-bar-setting">
+                    <option value="full">Full (Icon, TPM, %, Session)</option>
+                    <option value="compact">Compact (Icon, TPM)</option>
+                    <option value="icon-only">Icon only</option>
+                  </select>
+                  <p class="setting-description">Choose what to display in the status bar</p>
+                </div>
+                
+                <div class="setting-item">
+                  <label class="setting-label" for="updateFrequency">Update frequency</label>
+                  <div class="slider-container">
+                    <input type="range" id="updateFrequency" class="setting-slider status-bar-setting" 
+                           min="1" max="60" value="5" step="1">
+                    <span class="slider-value" id="updateFrequencyValue">5 min</span>
+                  </div>
+                  <p class="setting-description">How often to refresh usage data</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Alert Settings -->
+            <div class="settings-section">
+              <h3>Alerts</h3>
+              <div class="settings-group">
+                <div class="setting-item">
+                  <label class="setting-label">
+                    <input type="checkbox" id="alertsEnabled" class="setting-checkbox status-bar-setting">
+                    <span>Enable usage alerts</span>
+                  </label>
+                  <p class="setting-description">Show notifications when approaching token limits</p>
+                </div>
+                
+                <div class="setting-item">
+                  <label class="setting-label" for="alertThreshold">Alert threshold</label>
+                  <div class="slider-container">
+                    <input type="range" id="alertThreshold" class="setting-slider status-bar-setting" 
+                           min="50" max="99" value="90" step="1">
+                    <span class="slider-value" id="alertThresholdValue">90%</span>
+                  </div>
+                  <p class="setting-description">Show alert when usage exceeds this percentage</p>
+                </div>
+                
+                <div class="setting-item">
+                  <label class="setting-label">
+                    <input type="checkbox" id="notifyOnReset" class="setting-checkbox status-bar-setting">
+                    <span>Notify on window reset</span>
+                  </label>
+                  <p class="setting-description">Show notification when 5-hour window resets</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Save Button -->
+            <div class="settings-actions">
+              <button id="saveSettings" class="save-button">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="renderer.js"></script>
+  <script src="statistics.js"></script>
+  <script src="now.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
