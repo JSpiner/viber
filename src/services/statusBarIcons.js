@@ -3,36 +3,30 @@ const path = require('path');
 
 class StatusBarIcons {
   constructor() {
-    // Base icon paths
-    this.iconPath = path.join(__dirname, '../../resources/tray');
+    // Use the main app icon for status bar
+    this.iconPath = path.join(__dirname, '../../resources/icon.png');
     
-    // Create icon templates for different states
-    this.icons = {
-      normal: null,
-      warning: null,
-      critical: null,
-      disabled: null
-    };
+    // Load and resize icon
+    try {
+      const originalIcon = nativeImage.createFromPath(this.iconPath);
+      // Resize to 16x16 for status bar
+      this.baseIcon = originalIcon.resize({ width: 16, height: 16 });
+      this.baseIcon.setTemplateImage(true);
+      console.log('Base icon loaded:', !this.baseIcon.isEmpty());
+    } catch (error) {
+      console.error('Error loading base icon:', error);
+      this.baseIcon = nativeImage.createEmpty();
+    }
   }
 
   // Generate a simple SVG icon for the status bar
-  generateSVGIcon(color = '#0e639c', fillPercent = 0) {
-    const svg = `
-      <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
-        <!-- Background circle -->
-        <circle cx="11" cy="11" r="9" fill="none" stroke="${color}" stroke-width="2" opacity="0.3"/>
-        
-        <!-- Progress arc -->
-        <path d="M 11 2 A 9 9 0 ${fillPercent > 50 ? 1 : 0} 1 ${this.getArcEndPoint(fillPercent)}" 
-              fill="none" 
-              stroke="${color}" 
-              stroke-width="2"
-              stroke-linecap="round"/>
-        
-        <!-- Center dot -->
-        <circle cx="11" cy="11" r="3" fill="${color}"/>
-      </svg>
-    `;
+  generateSVGIcon(color = '#000000', fillPercent = 0) {
+    // For macOS template images, use black color - it will be automatically adjusted
+    const svg = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+<circle cx="8" cy="8" r="7" fill="none" stroke="#000000" stroke-width="1.5" opacity="0.3"/>
+${fillPercent > 0 ? `<path d="M 8 1 A 7 7 0 ${fillPercent > 50 ? 1 : 0} 1 ${this.getArcEndPoint(fillPercent)}" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round"/>` : ''}
+<circle cx="8" cy="8" r="2.5" fill="#000000"/>
+</svg>`;
     
     return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
   }
@@ -40,37 +34,15 @@ class StatusBarIcons {
   getArcEndPoint(percent) {
     const angle = (percent / 100) * 360 - 90; // Start from top
     const radians = (angle * Math.PI) / 180;
-    const x = 11 + 9 * Math.cos(radians);
-    const y = 11 + 9 * Math.sin(radians);
+    const x = 8 + 7 * Math.cos(radians);
+    const y = 8 + 7 * Math.sin(radians);
     return `${x} ${y}`;
   }
 
   getIcon(state = 'normal', usagePercent = 0) {
-    let color;
-    switch (state) {
-      case 'normal':
-        color = '#0e639c'; // Blue
-        break;
-      case 'warning':
-        color = '#ffa500'; // Orange
-        break;
-      case 'critical':
-        color = '#ff6b6b'; // Red
-        break;
-      case 'disabled':
-        color = '#666666'; // Gray
-        break;
-      default:
-        color = '#0e639c';
-    }
-
-    const svgData = this.generateSVGIcon(color, usagePercent);
-    const icon = nativeImage.createFromDataURL(svgData);
-    
-    // Mark as template image for macOS (adapts to menu bar theme)
-    icon.setTemplateImage(true);
-    
-    return icon;
+    // Simply return the base icon for now
+    // In the future, we can add overlays or badges based on state
+    return this.baseIcon;
   }
 
   getStateFromUsage(usagePercent) {

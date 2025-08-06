@@ -17,13 +17,16 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@jest/globals": "^30.0.5",
     "electron": "^37.2.4",
     "electron-builder": "^26.0.12",
-    "jest": "^30.0.5"
+    "jest": "^30.0.5",
+    "jsdom": "^26.1.0"
   },
   "dependencies": {
     "chart.js": "^4.5.0",
-    "electron-store": "^10.1.0"
+    "electron-store": "^10.1.0",
+    "js-yaml": "^4.1.0"
   },
   "build": {
     "appId": "com.viber.app",
@@ -48,11 +51,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },

@@ -4,6 +4,7 @@
 
 A macOS desktop application for analyzing and monitoring Claude conversation data with real-time token usage tracking.
 
+Download Latest Version : https://github.com/JSpiner/viber/releases
 
 ## Features
 
@@ -15,9 +16,49 @@ A macOS desktop application for analyzing and monitoring Claude conversation dat
 - **Token Limits**: Monitor 5-hour and weekly token windows with visual progress indicators
 - **Cost Tracking**: Track estimated costs based on your usage patterns with accurate Claude pricing
 - **Cache Savings**: See how much you save with Claude's caching feature
+- **Status Bar Integration**: Optional macOS status bar icon showing current usage
+- **Real-time Alerts**: Get notified when approaching token limits
+- **Session Analysis**: View per-session token usage, costs, and cache efficiency
+- **Hooks Support**: Extensible hook system for custom integrations and workflows
 
 ## Screenshots
-TBD
+
+### Now Tab - Real-time Monitoring
+![now_tab](/images/app_now_1.png)
+![now_tab](/images/app_now_2.png)
+
+Track your Claude token usage in real-time with visual progress indicators and automatic updates.
+
+### Statistics Tab - Usage Analytics
+![statistics_tab](/images/app_stastics_1.png)
+![statistics_tab](/images/app_stastics_2.png)
+![statistics_tab](/images/app_stastics_3.png)
+
+View detailed charts and analytics of your token consumption patterns over time.
+
+### Session Log Tab - Conversation History
+![session_log_tab](/images/app_session_log.png)
+
+Browse through your past conversations with detailed metrics and search functionality.
+
+### Agents Tab - Claude Agents
+![agents_tab](/images/app_agent.png)
+Manage agents
+
+### Hooks - Claude Notification
+![hooks_tab](/images/app_hooks.png)
+Manage claude job done notification.
+Set up custom hooks to integrate Viber with your workflows and automation tools.
+
+### Settings Tab - Configuration
+![settings_tab](/images/app_settings.png)
+
+Configure your subscription tier, alerts, and application preferences.
+
+### Status Bar Integration
+![status_bar](/images/app_status_bar.png)
+
+Optional macOS status bar icon showing your current usage at a glance.
 
 ## Requirements
 
@@ -78,39 +119,40 @@ npm run dist:zip
 
 The built applications will be in the `dist/` directory.
 
-## Usage
-
-1. **Launch the application** using `npm start` or by opening the installed app
-2. **Select your subscription tier** in the Now tab (Pro, Max 5x, or Max 20x)
-3. **Monitor real-time usage** in the Now tab with automatic updates
-4. **View historical data** in the Statistics tab with daily or session views
-5. **Configure settings** in the Settings tab (status bar display, alerts, etc.)
-
-The app automatically scans `~/.claude/projects/` for JSONL conversation files.
-
 ## Development
 
 ### Project Structure
 ```
 viber/
-├── main.js              # Main process entry point
-├── renderer.js          # Renderer process and tab navigation
-├── index.html           # Main UI structure
-├── styles.css           # Application styles
-├── now.js              # Real-time monitoring logic
-├── statistics.js       # Statistics tab functionality
-├── settings.js         # Settings management
+├── main.js                      # Main process entry point
+├── preload.js                   # Preload script for IPC communication
+├── renderer.js                  # Renderer process and tab navigation
+├── index.html                   # Main UI structure
+├── styles.css                   # Application styles
+├── hooks.css                    # Hooks tab styles
+├── now.js                       # Real-time monitoring logic
+├── statistics.js                # Statistics tab functionality
+├── settings.js                  # Settings management
+├── hooks.js                     # Hooks tab functionality
 ├── services/
-│   ├── jsonl-parser.js # JSONL file parsing
-│   └── aggregator.js   # Token usage aggregation
-└── resources/          # Application resources
-    └── icon.png        # Application icon
+│   ├── jsonl-parser.js          # JSONL file parsing
+│   ├── aggregator.js            # Token usage aggregation
+│   ├── realtimeMonitor.js       # Real-time usage monitoring service
+│   ├── statusBar.js             # Status bar integration
+│   ├── statusBarIcons.js        # Status bar icon generation
+│   ├── claudeSettingsManager.js # Claude settings management
+│   └── hooksManager.js          # Hooks system management
+├── test/                        # Test files
+└── resources/                   # Application resources
+    └── icon.png                 # Application icon
 ```
 
 ### Key Technologies
 - **Electron**: Cross-platform desktop application framework
 - **Chart.js**: Data visualization for usage charts
 - **electron-store**: Persistent settings storage
+- **Jest**: Testing framework for unit and integration tests
+- **Canvas API**: Dynamic status bar icon generation
 
 ### Running Tests
 ```bash
@@ -138,9 +180,22 @@ Viber stores its configuration in:
 
 Settings include:
 - Selected subscription tier
-- Status bar preferences
-- Alert thresholds
+- Status bar preferences (visibility, icon style)
+- Alert thresholds (percentage-based warnings)
 - Update frequency
+- Notification preferences
+- Hook configurations
+
+### Hooks System
+
+Viber supports a powerful hooks system for custom integrations:
+
+- **usage-update**: Triggered when token usage updates
+- **limit-warning**: Triggered when approaching token limits
+- **session-complete**: Triggered when a Claude session ends
+- **daily-reset**: Triggered at daily reset times
+
+Hooks can execute shell commands with access to usage data via environment variables.
 
 ## Contributing
 

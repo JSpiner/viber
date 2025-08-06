@@ -318,8 +318,8 @@ class StatisticsManager {
       `<th class="model-header">${model.replace('claude-', '').replace('-20240229', '').replace('-20250514', '')}</th>`
     ).join('');
     
-    // Create table rows
-    const rows = dailyData.slice(0, 7).map(day => {
+    // Create table rows - show all data without limit
+    const rows = dailyData.map(day => {
       const date = day.date; // Already in YYYY-MM-DD format
       
       // Calculate model percentages
@@ -534,61 +534,117 @@ class StatisticsManager {
     const filterEndDate = new Date(endDateStr);
     filterEndDate.setHours(23, 59, 59, 999);
 
-    // Prepare data for timeline chart
-    const chartData = sessionData.slice(0, 20).map((session, index) => {
+    // Group sessions by project name
+    const projectGroups = {};
+    const projectColors = {};
+    const colorPalette = [
+      { bg: 'rgba(14, 99, 156, 0.8)', border: 'rgba(14, 99, 156, 1)' },
+      { bg: 'rgba(30, 156, 108, 0.8)', border: 'rgba(30, 156, 108, 1)' },
+      { bg: 'rgba(156, 94, 14, 0.8)', border: 'rgba(156, 94, 14, 1)' },
+      { bg: 'rgba(156, 14, 94, 0.8)', border: 'rgba(156, 14, 94, 1)' },
+      { bg: 'rgba(94, 156, 14, 0.8)', border: 'rgba(94, 156, 14, 1)' },
+      { bg: 'rgba(14, 156, 156, 0.8)', border: 'rgba(14, 156, 156, 1)' },
+      { bg: 'rgba(156, 14, 14, 0.8)', border: 'rgba(156, 14, 14, 1)' }
+    ];
+    let colorIndex = 0;
+
+    // Process sessions and group by project
+    sessionData.forEach(session => {
+      // Extract the main project name (last part of path)
+      const fullProjectName = (session.projectName || 'Unknown').trim();
+      let projectName = fullProjectName.split('/').pop() || 'Unknown';
+      
+      // Special handling for viber-related projects
+      if (projectName === 'deprecated' && fullProjectName.includes('viber')) {
+        projectName = 'viber';
+      }
+      
+      if (!projectGroups[projectName]) {
+        projectGroups[projectName] = [];
+        projectColors[projectName] = colorPalette[colorIndex % colorPalette.length];
+        colorIndex++;
+      }
+      
       const start = new Date(session.startTime);
       const end = new Date(session.endTime);
       
-      return {
-        label: session.projectName.split('/').pop() || 'Unknown',
+      projectGroups[projectName].push({
+        label: projectName,
+        fullProjectName: fullProjectName,
         sessionId: session.sessionId.substring(0, 8),
         start: start,
         end: end,
         duration: end - start,
         cost: session.totals.totalCost,
-        tokens: session.totals.totalTokens
-      };
+        tokens: session.totals.totalTokens,
+        originalSession: session
+      });
+    });
+    
+    // Debug: Log grouping results
+    console.log('Session Timeline Grouping:');
+    console.log(`- Total sessions: ${sessionData.length}`);
+    console.log(`- Unique projects: ${Object.keys(projectGroups).length}`);
+    
+    // Check for viber-related projects
+    const viberProjects = Object.keys(projectGroups).filter(name => 
+      name.toLowerCase().includes('viber')
+    );
+    console.log(`- Viber-related projects: ${viberProjects.length}`);
+    viberProjects.forEach(name => {
+      console.log(`  "${name}" (${projectGroups[name].length} sessions)`);
+    });
+    
+    // Log all project names
+    console.log('All project names:');
+    Object.keys(projectGroups).forEach(name => {
+      console.log(`  "${name}"`);
     });
 
-    // Create datasets for the chart
+    // Create labels for Y axis (project names)
+    const projectNames = Object.keys(projectGroups);
+    
+    // Create datasets - one bar per session
+    const chartData = [];
+    const backgroundColors = [];
+    const borderColors = [];
+    
+    projectNames.forEach((projectName, yIndex) => {
+      const sessions = projectGroups[projectName];
+      const color = projectColors[projectName];
+      
+      sessions.forEach(session => {
+        chartData.push({
+          x: [session.start, session.end],
+          y: yIndex,
+          sessionId: session.sessionId,
+          cost: session.cost,
+          tokens: session.tokens,
+          projectName: session.fullProjectName,
+          label: session.label
+        });
+        backgroundColors.push(color.bg);
+        borderColors.push(color.border);
+      });
+    });
+
     const datasets = [{
       label: 'Sessions',
-      data: chartData.map((item, index) => ({
-        x: [item.start, item.end],
-        y: index,
-        sessionId: item.sessionId,
-        cost: item.cost,
-        tokens: item.tokens
-      })),
-      backgroundColor: chartData.map((_, index) => {
-        const colors = [
-          'rgba(14, 99, 156, 0.8)',
-          'rgba(30, 156, 108, 0.8)',
-          'rgba(156, 94, 14, 0.8)',
-          'rgba(156, 14, 94, 0.8)'
-        ];
-        return colors[index % colors.length];
-      }),
-      borderColor: chartData.map((_, index) => {
-        const colors = [
-          'rgba(14, 99, 156, 1)',
-          'rgba(30, 156, 108, 1)',
-          'rgba(156, 94, 14, 1)',
-          'rgba(156, 14, 94, 1)'
-        ];
-        return colors[index % colors.length];
-      }),
+      data: chartData,
+      backgroundColor: backgroundColors,
+      borderColor: borderColors,
       borderWidth: 1,
       borderSkipped: false,
       barPercentage: 0.8,
-      categoryPercentage: 0.9
+      categoryPercentage: 0.9,
+      minBarLength: 2
     }];
 
     // Create the timeline chart
     this.timelineChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: chartData.map(d => d.label),
+        labels: projectNames,
         datasets: datasets
       },
       options: {
@@ -640,7 +696,7 @@ class StatisticsManager {
               },
               label: function(context) {
                 const data = chartData[context.dataIndex];
-                const duration = data.duration;
+                const duration = data.x[1] - data.x[0];
                 const hours = Math.floor(duration / (1000 * 60 * 60));
                 const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
                 

@@ -30,6 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => window.statisticsManager?.loadStatistics(), 100);
     } else if (targetTab === 'now') {
       setTimeout(() => window.nowManager?.loadNowData(), 100);
+    } else if (targetTab === 'agents') {
+      setTimeout(() => {
+        if (typeof window.initializeAgentsUI === 'function') {
+          window.initializeAgentsUI();
+        }
+      }, 100);
     }
   }
 

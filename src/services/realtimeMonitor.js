@@ -24,9 +24,24 @@ class RealtimeMonitor {
       // Get current weekly session data
       const weeklyWindowData = this.calculateWindowUsage(allUsage, null, true);
 
-      // Calculate tokens per minute and trend
+      // Get last 2 weeks of data for weekly visualization
+      const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      const twoWeeksData = allUsage.filter(item => 
+        new Date(item.timestamp) >= twoWeeksAgo
+      );
+      
+      console.log('RealtimeMonitor - twoWeeksData:', twoWeeksData.length, 'items from', twoWeeksAgo.toISOString());
+
+      // Calculate all weekly windows in the 2-week period (pass all usage data)
+      const weeklyWindows = this.calculateAllWeeklyWindows(allUsage);
+      console.log('Weekly windows calculated:', weeklyWindows.length, 'windows');
+      weeklyWindows.forEach((w, i) => {
+        console.log(`Window ${i}: ${new Date(w.start).toLocaleDateString()} - ${new Date(w.end).toLocaleDateString()}, isCurrent: ${w.isCurrent}`);
+      });
+
+      // Calculate tokens per minute and trend (only input + output tokens)
       const tokensPerMinute = recentUsage.length > 0
-        ? recentUsage.reduce((sum, item) => sum + (item.usage.effectiveTotal || item.usage.total), 0) / 10
+        ? recentUsage.reduce((sum, item) => sum + (item.usage.inputTokens || 0) + (item.usage.outputTokens || 0), 0) / 10
         : 0;
 
       // Determine trend (you might want to compare with previous period)
@@ -36,6 +51,8 @@ class RealtimeMonitor {
         recent: recentUsage,
         hourlyWindow: hourlyWindowData,
         weeklyWindow: weeklyWindowData,
+        twoWeeksData: twoWeeksData,
+        weeklyWindows: weeklyWindows,
         tokensPerMinute,
         trend
       };
@@ -43,6 +60,98 @@ class RealtimeMonitor {
       console.error('Error getting recent usage:', error);
       throw error;
     }
+  }
+
+  calculateWeeklyWindowStart(allUsage) {
+    if (allUsage.length === 0) {
+      return null;
+    }
+    
+    // Find the oldest usage timestamp
+    const timestamps = allUsage.map(item => new Date(item.timestamp));
+    const oldestUsage = new Date(Math.min(...timestamps));
+    
+    // Current time
+    const now = new Date();
+    
+    // Calculate elapsed time since first usage
+    const elapsedMs = now - oldestUsage;
+    const elapsedWeeks = Math.floor(elapsedMs / (7 * 24 * 60 * 60 * 1000));
+    
+    // Calculate current weekly window start
+    const currentWindowStart = new Date(
+      oldestUsage.getTime() + (elapsedWeeks * 7 * 24 * 60 * 60 * 1000)
+    );
+    
+    return currentWindowStart;
+  }
+
+  calculateAllWeeklyWindows(allUsage) {
+    if (!allUsage || allUsage.length === 0) {
+      return [];
+    }
+    
+    // Find the very first usage timestamp from all data
+    const firstWindowStart = this.calculateWeeklyWindowStart(allUsage);
+    if (!firstWindowStart) {
+      return [];
+    }
+    
+    console.log('First window start:', firstWindowStart.toISOString());
+    
+    const windows = [];
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    
+    // Start from the first window that might overlap with our 2-week period
+    let windowStart = new Date(firstWindowStart);
+    
+    // Move forward to find the first window that overlaps with our 2-week display period
+    while (windowStart.getTime() + weekMs < twoWeeksAgo.getTime()) {
+      windowStart = new Date(windowStart.getTime() + weekMs);
+    }
+    
+    // Make sure we include at least one previous window if it exists
+    const currentWindowStart = this.calculateWeeklyWindowStart(allUsage);
+    if (currentWindowStart && windowStart.getTime() >= currentWindowStart.getTime()) {
+      // Go back one window to include the previous one
+      windowStart = new Date(windowStart.getTime() - weekMs);
+    }
+    
+    console.log('Starting window calculation from:', windowStart.toISOString());
+    
+    // Calculate all windows that overlap with the 2-week period
+    // Continue until we've covered all windows including the current one
+    while (windowStart.getTime() < now.getTime() + weekMs) {
+      const windowEnd = new Date(windowStart.getTime() + weekMs);
+      
+      // Count tokens in this window
+      const windowUsage = allUsage.filter(item => {
+        const itemTime = new Date(item.timestamp);
+        return itemTime >= windowStart && itemTime < windowEnd;
+      });
+      
+      const totalTokens = windowUsage.reduce((sum, item) => 
+        sum + (item.usage.effectiveTotal || 0), 0
+      );
+      
+      // Only include windows that have some overlap with the 2-week period
+      if (windowEnd >= twoWeeksAgo && windowStart <= now) {
+        windows.push({
+          start: windowStart.toISOString(),
+          end: windowEnd.toISOString(),
+          totalTokens: totalTokens,
+          messageCount: windowUsage.length,
+          isCurrent: windowStart <= now && windowEnd > now
+        });
+      }
+      
+      // Move to next window
+      windowStart = new Date(windowStart.getTime() + weekMs);
+    }
+    
+    return windows;
   }
 
   findCurrentSessionStart(allUsage, gapHours = 5) {
@@ -79,20 +188,104 @@ class RealtimeMonitor {
   }
 
   calculateWindowUsage(allUsage, windowStart, isWeekly = false) {
-    // For 5-hour window, find the actual current session start
-    // For weekly window, find the current weekly session start
-    const gapHours = isWeekly ? 24 * 7 : 5;
-    const actualSessionStart = this.findCurrentSessionStart(allUsage, gapHours);
-    
-    // Get all usage within the current session
-    const windowUsage = allUsage.filter(item => 
-      new Date(item.timestamp) >= actualSessionStart
-    );
+    // Check if there's any recent usage data
+    if (allUsage.length === 0) {
+      return {
+        windowStart: null,
+        sessionStart: null,
+        totalTokens: 0,
+        effectiveTotal: 0,
+        limit: isWeekly ? 304000 : 19000, // Default pro limits
+        resetTime: null,
+        rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+        messageCount: 0,
+        byModel: {}
+      };
+    }
 
-    // Use effectiveTotal for usage limit calculations
-    const totalTokens = windowUsage.reduce((sum, item) => 
-      sum + (item.usage.effectiveTotal || item.usage.total), 0
-    );
+    // For 5-hour windows, check if the most recent activity is older than the gap period
+    if (!isWeekly) {
+      const now = new Date();
+      const gapHours = 5;
+      const mostRecentActivity = allUsage
+        .map(item => new Date(item.timestamp))
+        .sort((a, b) => b - a)[0]; // Get most recent timestamp
+
+      const hoursSinceLastActivity = (now - mostRecentActivity) / (1000 * 60 * 60);
+      
+      // If last activity is older than the gap period, return no active session
+      if (hoursSinceLastActivity >= gapHours) {
+        console.log(`No active 5-hour session - last activity was ${hoursSinceLastActivity.toFixed(1)} hours ago`);
+        return {
+          windowStart: null,
+          sessionStart: null,
+          totalTokens: 0,
+          effectiveTotal: 0,
+          limit: 19000, // Default pro limits
+          resetTime: null,
+          rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+          messageCount: 0,
+          byModel: {}
+        };
+      }
+    }
+
+    // For 5-hour window, find the actual current session start
+    // For weekly window, use the new weekly calculation
+    let actualSessionStart;
+    let windowUsage;
+    
+    if (isWeekly) {
+      actualSessionStart = this.calculateWeeklyWindowStart(allUsage);
+      if (!actualSessionStart) {
+        // No usage data, return empty window
+        return {
+          windowStart: null,
+          sessionStart: null,
+          totalTokens: 0,
+          effectiveTotal: 0,
+          limit: 304000, // Default pro limits
+          resetTime: null,
+          rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+          messageCount: 0,
+          byModel: {}
+        };
+      }
+      // For weekly, get all usage within the week
+      const weekEnd = new Date(actualSessionStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      windowUsage = allUsage.filter(item => {
+        const itemTime = new Date(item.timestamp);
+        return itemTime >= actualSessionStart && itemTime < weekEnd;
+      });
+    } else {
+      // For 5-hour window, use strict rolling window approach
+      const now = new Date();
+      const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+      
+      // Get all messages within the last 5 hours
+      windowUsage = allUsage.filter(item => 
+        new Date(item.timestamp) >= fiveHoursAgo
+      );
+      
+      // If we have messages, the session start is 5 hours ago or the first message, whichever is later
+      if (windowUsage.length > 0) {
+        const sortedWindow = [...windowUsage].sort((a, b) => 
+          new Date(a.timestamp) - new Date(b.timestamp)
+        );
+        actualSessionStart = new Date(sortedWindow[0].timestamp);
+        
+        // Log for debugging
+        console.log(`5-hour rolling window: ${windowUsage.length} messages from ${actualSessionStart.toISOString()} to ${now.toISOString()}`);
+      } else {
+        actualSessionStart = fiveHoursAgo;
+      }
+    }
+
+    // Use effectiveTotal for usage limit calculations (input + output only)
+    const totalTokens = windowUsage.reduce((sum, item) => {
+      const itemTokens = item.usage.effectiveTotal || 0;
+      return sum + itemTokens;
+    }, 0);
     
     // Calculate raw totals for display
     const rawTotals = windowUsage.reduce((totals, item) => ({
@@ -113,7 +306,7 @@ class RealtimeMonitor {
         };
       }
       byModel[item.model].tokens += item.usage.total;
-      byModel[item.model].effectiveTokens += (item.usage.effectiveTotal || item.usage.total);
+      byModel[item.model].effectiveTokens += (item.usage.effectiveTotal || 0);
       byModel[item.model].messages += 1;
     });
 
@@ -125,18 +318,17 @@ class RealtimeMonitor {
 
     // Get subscription limits (defaulting to Pro tier)
     const limits = {
-      pro: { fiveHourTokens: 10000000, weeklyTokens: 20000000 },
-      max5x: { fiveHourTokens: 50000000, weeklyTokens: 100000000 },
-      max20x: { fiveHourTokens: 200000000, weeklyTokens: 200000000 }
+      pro: { fiveHourTokens: 19000, weeklyTokens: 304000 },
+      max5x: { fiveHourTokens: 88000, weeklyTokens: 1408000 },
+      max20x: { fiveHourTokens: 220000, weeklyTokens: 2816000 }
     };
     
     const tierLimits = limits.pro; // Default to pro tier
     const limit = isWeekly ? tierLimits.weeklyTokens : tierLimits.fiveHourTokens;
     
-    const now = new Date();
     const resetTime = isWeekly
       ? new Date(actualSessionStart.getTime() + 7 * 24 * 60 * 60 * 1000)
-      : new Date(actualSessionStart.getTime() + 5 * 60 * 60 * 1000);
+      : new Date(new Date().getTime() + 5 * 60 * 60 * 1000); // Rolling window resets 5 hours from now
 
     return {
       windowStart: actualSessionStart.toISOString(),
@@ -188,7 +380,8 @@ class RealtimeMonitor {
 
   async getProjectRecentUsage(projectPath, projectName) {
     const usage = [];
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    // No date limit - read all available data
+    const oldestAllowedDate = new Date(0); // Unix epoch (1970-01-01)
     
     try {
       const files = await fs.readdir(projectPath);
@@ -199,7 +392,8 @@ class RealtimeMonitor {
         const filePath = path.join(projectPath, file);
         const stat = await fs.stat(filePath);
         
-        if (stat.mtime >= threeDaysAgo) {
+        // Always read JSONL files regardless of modification time
+        if (true) {
           const fileUsage = await this.extractRecentUsageFromFile(
             filePath, 
             projectName.replace(/-/g, '/'),
@@ -218,7 +412,7 @@ class RealtimeMonitor {
 
   async extractRecentUsageFromFile(filePath, projectName, sessionId) {
     const usage = [];
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    // No date limit - read all available data
     
     try {
       const content = await fs.readFile(filePath, 'utf8');
@@ -229,14 +423,11 @@ class RealtimeMonitor {
         try {
           const data = JSON.parse(lines[i]);
           
-          // Stop if we've gone too far back
-          if (new Date(data.timestamp) < threeDaysAgo) {
-            break;
-          }
+          // No date limit - process all data
           
           if (data.type === 'assistant' && data.message?.usage) {
             const usageData = data.message.usage;
-            usage.push({
+            const usageItem = {
               timestamp: data.timestamp,
               sessionId,
               projectName,
@@ -246,18 +437,18 @@ class RealtimeMonitor {
                 outputTokens: usageData.output_tokens || 0,
                 cacheCreateTokens: usageData.cache_creation_input_tokens || 0,
                 cacheReadTokens: usageData.cache_read_input_tokens || 0,
-                // Cache read tokens count as 10% (90% discount) toward usage limits
-                // Cache create tokens count as 125% (25% more expensive)
+                // For limit calculations, only input + output tokens count
+                // Cache tokens are excluded from limit calculations
                 effectiveTotal: (usageData.input_tokens || 0) + 
-                               (usageData.output_tokens || 0) + 
-                               ((usageData.cache_creation_input_tokens || 0) * 1.25) + 
-                               ((usageData.cache_read_input_tokens || 0) * 0.1),
+                               (usageData.output_tokens || 0),
                 total: (usageData.input_tokens || 0) + 
                        (usageData.output_tokens || 0) + 
                        (usageData.cache_creation_input_tokens || 0) + 
                        (usageData.cache_read_input_tokens || 0)
               }
-            });
+            };
+            
+            usage.push(usageItem);
           }
         } catch (parseError) {
           // Skip malformed lines

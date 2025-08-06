@@ -19,26 +19,42 @@ class StatusBar {
     };
     this.lastAlertTime = null;
     this.currentUsageData = null;
+    this.isMenuOpen = false; // Track menu state
   }
 
   async init() {
-    if (!this.settings.enabled) return;
+    console.log('StatusBar init called, enabled:', this.settings.enabled);
+    if (!this.settings.enabled) {
+      console.log('StatusBar is disabled in settings');
+      return;
+    }
     
-    // Create tray icon
-    const icon = this.icons.getIcon('normal', 0);
-    this.tray = new Tray(icon);
-    this.tray.setToolTip('Viber - Token Usage Monitor');
-    
-    // Set up click handler
-    this.tray.on('click', () => {
-      this.updateMenu();
-    });
-    
-    // Start periodic updates
-    this.startUpdates();
-    
-    // Initial update
-    await this.update();
+    try {
+      // Create tray icon
+      console.log('Creating tray icon...');
+      const icon = this.icons.getIcon('normal', 0);
+      console.log('Icon created:', icon ? 'success' : 'failed');
+      
+      this.tray = new Tray(icon);
+      console.log('Tray created:', this.tray ? 'success' : 'failed');
+      
+      this.tray.setToolTip('Viber - Token Usage Monitor');
+      
+      // Set up click handler
+      this.tray.on('click', () => {
+        this.isMenuOpen = true;
+        this.updateMenu();
+      });
+      
+      // Start periodic updates
+      this.startUpdates();
+      
+      // Initial update
+      await this.update();
+      console.log('StatusBar initialized successfully');
+    } catch (error) {
+      console.error('Error initializing StatusBar:', error);
+    }
   }
 
   async update() {
@@ -65,10 +81,8 @@ class StatusBar {
         this.checkAlerts(usagePercent);
       }
       
-      // Update menu if it's open
-      if (this.tray.popUpContextMenu) {
-        this.updateMenu();
-      }
+      // Don't update menu automatically - only update data
+      // Menu will be refreshed when user clicks on the tray icon
     } catch (error) {
       console.error('Error updating status bar:', error);
     }
@@ -82,12 +96,12 @@ class StatusBar {
         // Full: TPM, Percentage, Session Count
         const tpm = Math.round(this.currentUsageData?.tokensPerMinute || 0);
         const sessionCount = windowData.messageCount || 0;
-        title = `${tpm} tpm | ${usagePercent}% | ${sessionCount}`;
+        title = `${tpm} tokens/min | ${usagePercent}% | ${sessionCount}`;
         break;
       case 'compact':
         // Compact: Just TPM
         const compactTpm = Math.round(this.currentUsageData?.tokensPerMinute || 0);
-        title = `${compactTpm} tpm`;
+        title = `${compactTpm} tokens/min`;
         break;
       case 'icon-only':
         title = '';
@@ -194,6 +208,11 @@ class StatusBar {
     
     this.tray.setContextMenu(menu);
     this.tray.popUpContextMenu();
+    
+    // Track when menu is closed
+    menu.on('menu-will-close', () => {
+      this.isMenuOpen = false;
+    });
   }
 
   formatNumber(num) {
