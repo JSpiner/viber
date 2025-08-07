@@ -2,6 +2,8 @@
 ![viber_image](images/viber_image.png)
 ![viber_logo](images/viber_logo.png)
 
+![hits](https://hits.sh/github.com/jspiner-viber/hits.svg)
+
 A macOS desktop application for analyzing and monitoring Claude conversation data with real-time token usage tracking.
 
 [Viber Install Guide](#Installation)
