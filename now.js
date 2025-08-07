@@ -229,8 +229,10 @@ class NowManager {
     }
     
     // Calculate reset time
-    if (hasActiveSession && this.hourlyWindowData?.resetTime) {
-      const resetTime = new Date(this.hourlyWindowData.resetTime);
+    if (hasActiveSession) {
+      // Reset time = Session start time + 5 hours
+      const sessionStart = new Date(this.hourlyWindowData.windowStart);
+      const resetTime = new Date(sessionStart.getTime() + (5 * 60 * 60 * 1000)); // Add 5 hours in milliseconds
       this.updateResetTime('fiveHourReset', resetTime);
     } else {
       // If no active session, don't show a reset timer

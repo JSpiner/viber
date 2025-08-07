@@ -4,8 +4,8 @@ const yaml = require('js-yaml');
 
 class AgentsGallery {
   constructor() {
-    this.galleryPath = path.join(__dirname, '..', '..', 'agents-gallery');
-    console.log('AgentsGallery constructor - Gallery path:', this.galleryPath);
+    // Initialize with null, will be set properly in getGalleryPath()
+    this.galleryPath = null;
     this.agentsData = null;
     this.agentCategories = {
       'backend-architect': 'Development & Architecture',
@@ -24,6 +24,7 @@ class AgentsGallery {
       'typescript-pro': 'Language Specialists',
       'php-pro': 'Language Specialists',
       'java-pro': 'Language Specialists',
+      'kotlin-spring-champion': 'Language Specialists',
       'ios-developer': 'Language Specialists',
       'sql-pro': 'Language Specialists',
       
@@ -60,6 +61,7 @@ class AgentsGallery {
       'context-manager': 'Specialized Domains',
       
       'business-analyst': 'Business & Marketing',
+      'product-owner-champion': 'Business & Marketing',
       'content-marketer': 'Business & Marketing',
       'sales-automator': 'Business & Marketing',
       'customer-support': 'Business & Marketing',
@@ -67,19 +69,78 @@ class AgentsGallery {
     };
   }
 
-  async ensureGalleryDirectory() {
+  getGalleryPath() {
+    if (this.galleryPath) {
+      return this.galleryPath;
+    }
+    
+    // Check if app is packaged by looking for app module
     try {
-      await fs.access(this.galleryPath);
+      const { app } = require('electron');
+      if (app && app.isPackaged) {
+        // In production, agents-gallery is in extraResources
+        this.galleryPath = path.join(process.resourcesPath, 'agents-gallery');
+      } else {
+        // In development, use the project root
+        this.galleryPath = path.join(__dirname, '..', '..', 'agents-gallery');
+      }
     } catch (error) {
-      await fs.mkdir(this.galleryPath, { recursive: true });
+      // If electron app is not available, fallback to checking process.resourcesPath
+      if (process.resourcesPath) {
+        this.galleryPath = path.join(process.resourcesPath, 'agents-gallery');
+      } else {
+        this.galleryPath = path.join(__dirname, '..', '..', 'agents-gallery');
+      }
+    }
+    
+    console.log('Gallery path resolved to:', this.galleryPath);
+    console.log('process.resourcesPath:', process.resourcesPath);
+    return this.galleryPath;
+  }
+
+  async ensureGalleryDirectory() {
+    const galleryPath = this.getGalleryPath();
+    try {
+      await fs.access(galleryPath);
+    } catch (error) {
+      await fs.mkdir(galleryPath, { recursive: true });
     }
   }
 
   parseMarkdownAgent(content) {
     console.log('parseMarkdownAgent called with content length:', content.length);
     
-    // Remove the source comment line and any empty lines at the start
+    // Parse source from first line if it matches the pattern
+    let source = 'unknown';
     const lines = content.split('\n');
+    const firstLine = lines[0]?.trim();
+    
+    // Check if first line contains source information
+    // Pattern: # Source: https://github.com/... (License)
+    if (firstLine && firstLine.startsWith('#')) {
+      console.log('[DEBUG] Parsing first line:', firstLine);
+      const sourceMatch = firstLine.match(/Source:\s*(.+?)(?:\s*\(|$)/);
+      if (sourceMatch) {
+        const fullSource = sourceMatch[1].trim();
+        console.log('[DEBUG] Full source extracted:', fullSource);
+        
+        // Extract repository name from GitHub URL if present
+        const githubMatch = fullSource.match(/github\.com\/([^/]+\/[^/]+)/);
+        if (githubMatch) {
+          source = githubMatch[1];
+          console.log('[DEBUG] GitHub repo extracted:', source);
+        } else {
+          source = fullSource;
+          console.log('[DEBUG] Using full source:', source);
+        }
+      } else {
+        console.log('[DEBUG] No source match found in first line');
+      }
+    } else {
+      console.log('[DEBUG] First line does not start with #');
+    }
+    
+    // Remove the source comment line and any empty lines at the start
     let startIndex = 0;
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].trim() && !lines[i].startsWith('# Source:')) {
@@ -89,7 +150,6 @@ class AgentsGallery {
     }
     
     const cleanContent = lines.slice(startIndex).join('\n');
-    console.log('Clean content starts with:', cleanContent.substring(0, 50));
     
     // Extract YAML frontmatter
     const yamlMatch = cleanContent.match(/^---\n([\s\S]*?)\n---/);
@@ -102,15 +162,18 @@ class AgentsGallery {
       const frontmatter = yaml.load(yamlMatch[1]);
       const bodyContent = cleanContent.slice(yamlMatch[0].length).trim();
       
-      console.log('Parsed frontmatter:', frontmatter);
+      console.log('Agent parsed:', frontmatter.name, 'from source:', source);
 
-      return {
+      const agentResult = {
         name: frontmatter.name,
         description: frontmatter.description || '',
         model: frontmatter.model || 'default',
         system_prompt: bodyContent,
-        tools: frontmatter.tools || []
+        tools: frontmatter.tools || [],
+        parsedSource: source
       };
+      
+      return agentResult;
     } catch (error) {
       console.error('Error parsing markdown agent:', error);
       return null;
@@ -119,12 +182,13 @@ class AgentsGallery {
 
   async loadAgentsFromFiles() {
     console.log('loadAgentsFromFiles called');
-    console.log('Gallery path:', this.galleryPath);
+    const galleryPath = this.getGalleryPath();
+    console.log('Gallery path:', galleryPath);
     
     await this.ensureGalleryDirectory();
     
     try {
-      const files = await fs.readdir(this.galleryPath);
+      const files = await fs.readdir(galleryPath);
       console.log('Files in gallery directory:', files);
       
       const mdFiles = files.filter(file => file.endsWith('.md'));
@@ -134,7 +198,7 @@ class AgentsGallery {
       
       for (const file of mdFiles) {
         try {
-          const filePath = path.join(this.galleryPath, file);
+          const filePath = path.join(galleryPath, file);
           console.log(`Loading agent from: ${filePath}`);
           
           const content = await fs.readFile(filePath, 'utf8');
@@ -144,12 +208,20 @@ class AgentsGallery {
             const agentName = path.basename(file, '.md');
             agent.name = agent.name || agentName;
             agent.category = this.agentCategories[agentName] || 'Uncategorized';
+            // Set metadata with parsed source
+            const finalSource = agent.parsedSource || 'unknown';
+            console.log(`[DEBUG] Setting source for ${agent.name}: "${finalSource}" (from parsedSource: "${agent.parsedSource}")`);
+            
             agent.metadata = {
-              source: 'wshobson/agents',
-              license: 'MIT'
+              source: finalSource,
+              license: finalSource && finalSource.includes('wshobson') ? 'MIT' : 'unknown'
             };
+            
+            console.log(`[DEBUG] Final metadata for ${agent.name}:`, JSON.stringify(agent.metadata));
+            // Remove the temporary parsedSource field
+            delete agent.parsedSource;
             agents.push(agent);
-            console.log(`Successfully loaded agent: ${agent.name}`);
+            console.log(`Successfully loaded agent: ${agent.name} with source: ${agent.metadata.source}`);
           } else {
             console.log(`Failed to parse agent from ${file}`);
           }
@@ -168,7 +240,8 @@ class AgentsGallery {
   }
 
   async saveGalleryData() {
-    const dataPath = path.join(this.galleryPath, 'agents-data.json');
+    const galleryPath = this.getGalleryPath();
+    const dataPath = path.join(galleryPath, 'agents-data.json');
     await fs.writeFile(dataPath, JSON.stringify(this.agentsData, null, 2), 'utf8');
   }
 

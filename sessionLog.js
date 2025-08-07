@@ -773,6 +773,7 @@ class SessionLogManager {
     const term = searchTerm.toLowerCase();
     const items = document.querySelectorAll('.session-item');
     
+    
     items.forEach(item => {
       const text = item.textContent.toLowerCase();
       item.style.display = text.includes(term) ? '' : 'none';

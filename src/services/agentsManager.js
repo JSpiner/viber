@@ -37,7 +37,8 @@ class AgentsManager {
               ...agent.metadata,
               created: stats.birthtime,
               modified: stats.mtime,
-              filePath: filePath
+              filePath: filePath,
+              source: agent.metadata?.source || 'unknown'
             };
             agents.push(agent);
           }
@@ -75,7 +76,11 @@ class AgentsManager {
         system_prompt: agent.system_prompt || '',
         tools: agent.tools || [],
         model: agent.model || 'default',
-        ...agent
+        ...agent,
+        metadata: {
+          ...(agent.metadata || {}),
+          source: agent.metadata?.source || 'unknown'
+        }
       };
     } catch (error) {
       console.error('Error parsing YAML agent:', error);
@@ -84,6 +89,37 @@ class AgentsManager {
   }
 
   parseMarkdownAgent(content) {
+    console.log('AgentsManager.parseMarkdownAgent called with content length:', content.length);
+    // Parse source from first line if it matches the pattern
+    let source = 'unknown';
+    const lines = content.split('\n');
+    const firstLine = lines[0]?.trim();
+    
+    // Check if first line contains source information
+    // Pattern: # Source: https://github.com/... (License)
+    if (firstLine && firstLine.startsWith('#')) {
+      console.log('[AgentsManager] Parsing first line:', firstLine);
+      const sourceMatch = firstLine.match(/Source:\s*(.+?)(?:\s*\(|$)/);
+      if (sourceMatch) {
+        const fullSource = sourceMatch[1].trim();
+        console.log('[AgentsManager] Full source extracted:', fullSource);
+        
+        // Extract repository name from GitHub URL if present
+        const githubMatch = fullSource.match(/github\.com\/([^/]+\/[^/]+)/);
+        if (githubMatch) {
+          source = githubMatch[1];
+          console.log('[AgentsManager] GitHub repo extracted:', source);
+        } else {
+          source = fullSource;
+          console.log('[AgentsManager] Using full source:', source);
+        }
+      } else {
+        console.log('[AgentsManager] No source match found');
+      }
+    } else {
+      console.log('[AgentsManager] First line does not start with #');
+    }
+    
     // Check if the content has YAML frontmatter
     if (content.startsWith('---')) {
       const endOfFrontmatter = content.indexOf('\n---\n', 4);
@@ -93,14 +129,20 @@ class AgentsManager {
         
         try {
           const frontmatter = yaml.load(frontmatterContent);
-          return {
+          const agentData = {
             name: frontmatter.name || 'unnamed',
             description: frontmatter.description || '',
             system_prompt: bodyContent || '',
             tools: frontmatter.tools || [],
             model: frontmatter.model || 'default',
-            ...frontmatter
+            ...frontmatter,
+            metadata: {
+              ...(frontmatter.metadata || {}),
+              source: source
+            }
           };
+          console.log('AgentsManager - Loaded agent:', frontmatter.name, 'from source:', source);
+          return agentData;
         } catch (error) {
           console.error('Error parsing YAML frontmatter:', error);
         }
@@ -108,12 +150,14 @@ class AgentsManager {
     }
     
     // Fallback to old parsing method for non-frontmatter content
-    const lines = content.split('\n');
     const agent = {
       name: 'unnamed',
       description: '',
       system_prompt: '',
-      tools: []
+      tools: [],
+      metadata: {
+        source: source
+      }
     };
 
     let currentSection = null;

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const JSONLParser = require('./src/services/jsonlParser');
 const TokenAggregator = require('./src/services/tokenAggregator');
@@ -41,8 +41,10 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // Open DevTools for debugging
-  mainWindow.webContents.openDevTools();
+  // Open DevTools only in development
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -156,6 +158,12 @@ ipcMain.handle('load-recent-usage', async () => {
       stack: error.stack
     };
   }
+});
+
+// Handle IPC request for app version
+ipcMain.handle('get-app-version', () => {
+  const packageJson = require('./package.json');
+  return packageJson.version;
 });
 
 // Handle IPC requests for settings
@@ -337,6 +345,10 @@ ipcMain.handle('load-recommended-agents', async () => {
   console.log('IPC: load-recommended-agents called');
   try {
     const agents = await agentsGallery.getRecommendedAgents();
+    console.log(`IPC: Loaded ${agents.length} recommended agents`);
+    agents.forEach((agent, i) => {
+      console.log(`Agent ${i}: ${agent.name}, source: ${agent.metadata?.source}`);
+    });
     return { success: true, data: agents };
   } catch (error) {
     console.error('Error loading recommended agents:', error);
@@ -490,6 +502,17 @@ ipcMain.handle('read-session-file', async (event, filePath) => {
     return { success: true, data: { summary, messages } };
   } catch (error) {
     console.error('Error reading session file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle opening external links
+ipcMain.handle('open-external', async (event, url) => {
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening external link:', error);
     return { success: false, error: error.message };
   }
 });

@@ -1,0 +1,64 @@
+{
+  "appId": "com.viber.app",
+  "productName": "Viber",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "main.js",
+    "preload.js",
+    "renderer.js",
+    "statistics.js",
+    "now.js",
+    "settings.js", 
+    "hooks.js",
+    "agents.js",
+    "sessionLog.js",
+    "index.html",
+    "*.css",
+    "src/**/*.js",
+    "resources/**/*",
+    "agents-gallery/**/*.md",
+    "node_modules/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "agents-gallery",
+      "to": "agents-gallery",
+      "filter": ["**/*.md"]
+    }
+  ],
+  "mac": {
+    "icon": "resources/icon.png",
+    "category": "public.app-category.developer-tools",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "darkModeSupport": true,
+    "entitlements": "entitlements.mac.plist",
+    "entitlementsInherit": "entitlements.mac.plist",
+    "target": {
+      "target": "dmg",
+      "arch": "universal"
+    }
+  },
+  "dmg": {
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "internetEnabled": true
+  },
+  "compression": "maximum",
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "removePackageScripts": true,
+  "afterPack": "./after-pack-safe.js"
+}

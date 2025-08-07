@@ -1039,3 +1039,76 @@ body {
 .save-button.error {
   background-color: #ff6b6b;
 }
+
+/* Sidebar Footer Styles */
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.footer-stats {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.hits-badge {
+  height: 16px;
+  opacity: 0.7;
+  filter: brightness(0.9);
+  transition: opacity 0.2s ease;
+}
+
+.hits-badge:hover {
+  opacity: 1;
+}
+
+.footer-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.github-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s ease;
+  opacity: 0.8;
+}
+
+.github-link:hover {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.github-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.github-link span {
+  font-size: 11px;
+}
+
+.footer-divider {
+  color: var(--border-color);
+  opacity: 0.5;
+}
+
+.app-version {
+  color: var(--text-secondary);
+  opacity: 0.6;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}

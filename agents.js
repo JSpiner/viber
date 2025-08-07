@@ -126,6 +126,15 @@ class AgentsUI {
       if (result.success) {
         console.log('Recommended agents loaded:', result.data);
         console.log('Number of agents:', result.data ? result.data.length : 0);
+        
+        // Debug: Check metadata of each agent
+        if (result.data && result.data.length > 0) {
+          console.log('[DEBUG] Agent metadata check:');
+          result.data.forEach(agent => {
+            console.log(`  ${agent.name}: source="${agent.metadata?.source}", license="${agent.metadata?.license}"`);
+          });
+        }
+        
         this.renderRecommendedAgents(result.data);
       } else {
         console.error('Error loading recommended agents:', result.error);
@@ -195,6 +204,9 @@ class AgentsUI {
   }
 
   showRecommendedAgent(agent) {
+    console.log('[DEBUG] Showing recommended agent:', agent.name);
+    console.log('[DEBUG] Agent metadata:', agent.metadata);
+    
     this.emptyState.style.display = 'none';
     this.agentDetail.style.display = 'none';
     this.agentPreview.style.display = 'block';
@@ -204,6 +216,15 @@ class AgentsUI {
     this.previewDescription.textContent = agent.description || 'No description';
     this.previewPrompt.textContent = agent.system_prompt || 'No system prompt defined';
     this.previewModel.textContent = this.getModelDisplayName(agent.model);
+    
+    // Set source from metadata
+    if (this.previewSource) {
+      const source = agent.metadata?.source || 'unknown';
+      console.log(`[DEBUG] Setting preview source to: "${source}"`);
+      this.previewSource.textContent = `Source: ${source}`;
+    } else {
+      console.log('[DEBUG] previewSource element not found!');
+    }
     
     // Render tools
     this.previewTools.innerHTML = '';

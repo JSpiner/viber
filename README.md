@@ -71,7 +71,7 @@ Optional macOS status bar icon showing your current usage at a glance.
 
 ### Option 1: Download Pre-built Release
 
-1. Go to the [Releases](https://github.com/yourusername/viber/releases) page
+1. Go to the [Releases](https://github.com/JSpiner/viber/releases) page
 2. Download the `.dmg` file for your architecture (Intel or Apple Silicon)
 3. Open the DMG and drag Viber to your Applications folder
 
@@ -120,32 +120,6 @@ npm run dist:zip
 The built applications will be in the `dist/` directory.
 
 ## Development
-
-### Project Structure
-```
-viber/
-├── main.js                      # Main process entry point
-├── preload.js                   # Preload script for IPC communication
-├── renderer.js                  # Renderer process and tab navigation
-├── index.html                   # Main UI structure
-├── styles.css                   # Application styles
-├── hooks.css                    # Hooks tab styles
-├── now.js                       # Real-time monitoring logic
-├── statistics.js                # Statistics tab functionality
-├── settings.js                  # Settings management
-├── hooks.js                     # Hooks tab functionality
-├── services/
-│   ├── jsonl-parser.js          # JSONL file parsing
-│   ├── aggregator.js            # Token usage aggregation
-│   ├── realtimeMonitor.js       # Real-time usage monitoring service
-│   ├── statusBar.js             # Status bar integration
-│   ├── statusBarIcons.js        # Status bar icon generation
-│   ├── claudeSettingsManager.js # Claude settings management
-│   └── hooksManager.js          # Hooks system management
-├── test/                        # Test files
-└── resources/                   # Application resources
-    └── icon.png                 # Application icon
-```
 
 ### Key Technologies
 - **Electron**: Cross-platform desktop application framework
@@ -227,7 +201,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 If you encounter any issues or have questions:
-- Open an issue on [GitHub Issues](https://github.com/yourusername/viber/issues)
+- Open an issue on [GitHub Issues](https://github.com/JSpiner/viber/issues)
 - Check existing issues before creating a new one
 - Include your macOS version and architecture (Intel/Apple Silicon) in bug reports
 

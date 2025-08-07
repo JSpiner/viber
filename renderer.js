@@ -1,5 +1,16 @@
 // Tab switching functionality
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load and display app version
+  try {
+    const version = await window.electronAPI.getAppVersion();
+    const versionElement = document.querySelector('.app-version');
+    if (versionElement) {
+      versionElement.textContent = `v${version}`;
+    }
+  } catch (error) {
+    console.error('Failed to load app version:', error);
+  }
+
   const navItems = document.querySelectorAll('.nav-item');
   const contentPanels = document.querySelectorAll('.content-panel');
 
@@ -56,4 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Loading Now tab data on startup...');
     window.nowManager?.loadNowData();
   }, 500);
+
+  // Handle GitHub link click
+  const githubLink = document.getElementById('github-link');
+  if (githubLink) {
+    githubLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const url = githubLink.getAttribute('data-url');
+      if (url) {
+        await window.electronAPI.openExternal(url);
+      }
+    });
+  }
 });

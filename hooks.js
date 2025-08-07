@@ -11,7 +11,9 @@ class HooksManager {
     // Control buttons
     document.getElementById('viewInstalledHooks').addEventListener('click', () => this.showInstalledView());
     document.getElementById('viewRawJson').addEventListener('click', () => this.showRawJsonView());
-    document.getElementById('refreshHooks').addEventListener('click', () => this.loadHooks());
+    document.getElementById('refreshHooks').addEventListener('click', () => {
+      this.loadHooks();
+    });
     
     // Raw JSON view buttons
     document.getElementById('copyJsonBtn').addEventListener('click', () => this.copyJsonToClipboard());

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   loadTokenUsage: () => ipcRenderer.invoke('load-token-usage'),
   loadRecentUsage: () => ipcRenderer.invoke('load-recent-usage'),
   loadSettings: () => ipcRenderer.invoke('load-settings'),
@@ -30,5 +31,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Session Log API
   getClaudeSessions: () => ipcRenderer.invoke('get-claude-sessions'),
-  readSessionFile: (filePath) => ipcRenderer.invoke('read-session-file', filePath)
+  readSessionFile: (filePath) => ipcRenderer.invoke('read-session-file', filePath),
+  
+  // External links
+  openExternal: (url) => ipcRenderer.invoke('open-external', url)
 });
