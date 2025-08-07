@@ -10,7 +10,7 @@
     "renderer.js",
     "statistics.js",
     "now.js",
-    "settings.js", 
+    "settings.js",
     "hooks.js",
     "agents.js",
     "sessionLog.js",
@@ -37,24 +37,9 @@
     "entitlements": "entitlements.mac.plist",
     "entitlementsInherit": "entitlements.mac.plist",
     "target": {
-      "target": "dmg",
+      "target": "zip",
       "arch": "universal"
     }
-  },
-  "dmg": {
-    "contents": [
-      {
-        "x": 130,
-        "y": 220
-      },
-      {
-        "x": 410,
-        "y": 220,
-        "type": "link",
-        "path": "/Applications"
-      }
-    ],
-    "internetEnabled": true
   },
   "compression": "maximum",
   "npmRebuild": false,
