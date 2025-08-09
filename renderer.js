@@ -11,6 +11,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to load app version:', error);
   }
 
+  // Check for updates
+  checkUpdateStatus();
+  
+  // Update indicator click event
+  const updateIndicator = document.getElementById('update-indicator');
+  if (updateIndicator) {
+    updateIndicator.addEventListener('click', async () => {
+      await window.electronAPI.openReleasePage();
+    });
+  }
+
   const navItems = document.querySelectorAll('.nav-item');
   const contentPanels = document.querySelectorAll('.content-panel');
 
@@ -90,4 +101,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+});
+
+// Update status checking function
+async function checkUpdateStatus() {
+  try {
+    const updateInfo = await window.electronAPI.getUpdateInfo();
+    if (updateInfo && updateInfo.updateAvailable) {
+      showUpdateIndicator(updateInfo);
+    }
+  } catch (error) {
+    console.error('Failed to check update status:', error);
+  }
+}
+
+// Show update indicator function
+function showUpdateIndicator(updateInfo) {
+  const indicator = document.getElementById('update-indicator');
+  if (!indicator) return;
+  
+  const text = indicator.querySelector('.update-text');
+  if (text) {
+    text.textContent = `v${updateInfo.latestVersion} Update`;
+  }
+  
+  indicator.classList.remove('hidden');
+  
+  // Add tooltip
+  indicator.title = `현재: v${updateInfo.currentVersion}\n최신: v${updateInfo.latestVersion}\n클릭하여 다운로드`;
+}
+
+// Listen for update available event from main process
+window.electronAPI.onUpdateAvailable?.((updateInfo) => {
+  showUpdateIndicator(updateInfo);
 });

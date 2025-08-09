@@ -1,5 +1,16 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
+
+// Request single instance lock early
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running
+  app.quit();
+  return; // Exit early to prevent any further execution
+}
+
+// Only load modules if we got the lock
 const JSONLParser = require('./src/services/jsonlParser');
 const TokenAggregator = require('./src/services/tokenAggregator');
 const RealtimeMonitor = require('./src/services/realtimeMonitor');
@@ -9,6 +20,7 @@ const ClaudeSettingsManager = require('./src/services/claudeSettingsManager');
 const HooksManager = require('./src/services/hooksManager');
 const AgentsManager = require('./src/services/agentsManager');
 const agentsGallery = require('./src/services/agentsGallery');
+const UpdateChecker = require('./src/services/updateChecker');
 
 let mainWindow;
 let statusBar;
@@ -17,6 +29,16 @@ let realtimeMonitor;
 let claudeSettingsManager;
 let hooksManager;
 let agentsManager;
+let updateChecker;
+
+// Handle when another instance tries to start
+app.on('second-instance', () => {
+  // Focus the existing window
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -51,6 +73,11 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // Clean up status bar when window closes
+    if (statusBar) {
+      statusBar.destroy();
+      statusBar = null;
+    }
     mainWindow = null;
   });
   
@@ -61,11 +88,16 @@ function createWindow() {
   hooksManager = new HooksManager();
   agentsManager = new AgentsManager();
   
+  // Initialize UpdateChecker and set global mainWindow
+  global.mainWindow = mainWindow;
+  updateChecker = new UpdateChecker();
+  updateChecker.init();
+  
   // Initialize status bar
   statusBar = new StatusBar(mainWindow, realtimeMonitor);
   const statusBarSettings = settingsManager.getStatusBarSettings();
   statusBar.updateSettings(statusBarSettings);
-  statusBar.init();
+  // Note: init() is called automatically by updateSettings if the tray is enabled
 }
 
 app.whenReady().then(createWindow);
@@ -80,6 +112,7 @@ app.on('before-quit', () => {
   // Clean up status bar
   if (statusBar) {
     statusBar.destroy();
+    statusBar = null;
   }
 });
 
@@ -98,12 +131,15 @@ ipcMain.handle('load-token-usage', async () => {
     
     console.log('Loading token usage data...');
     // Load all token usage data
-    const tokenData = await parser.getAllTokenUsage();
+    const result = await parser.getAllTokenUsage();
+    const tokenData = result.tokenUsage;
+    const sessionPrompts = result.sessionPrompts;
+    const sessionDetails = result.sessionDetails;
     console.log('Token data loaded:', tokenData.length, 'entries');
     
     // Aggregate data
     const dailyData = aggregator.aggregateByDay(tokenData);
-    const sessionData = aggregator.aggregateBySession(tokenData);
+    const sessionData = aggregator.aggregateBySession(tokenData, sessionPrompts, sessionDetails);
     
     console.log('Aggregated data:', {
       daily: dailyData.length,
@@ -546,6 +582,45 @@ ipcMain.handle('open-external', async (event, url) => {
     return { success: true };
   } catch (error) {
     console.error('Error opening external link:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Update checker IPC handlers
+ipcMain.handle('get-update-info', async () => {
+  console.log('IPC: get-update-info called');
+  try {
+    if (updateChecker) {
+      const updateInfo = updateChecker.getUpdateInfo();
+      console.log('Update info:', updateInfo);
+      return updateInfo;
+    }
+    return {
+      updateAvailable: false,
+      currentVersion: app.getVersion(),
+      latestVersion: null,
+      releaseUrl: null
+    };
+  } catch (error) {
+    console.error('Error getting update info:', error);
+    return {
+      updateAvailable: false,
+      currentVersion: app.getVersion(),
+      latestVersion: null,
+      releaseUrl: null
+    };
+  }
+});
+
+ipcMain.handle('open-release-page', async () => {
+  console.log('IPC: open-release-page called');
+  try {
+    if (updateChecker) {
+      updateChecker.openReleasePage();
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening release page:', error);
     return { success: false, error: error.message };
   }
 });

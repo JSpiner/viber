@@ -36,5 +36,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readSessionFile: (filePath) => ipcRenderer.invoke('read-session-file', filePath),
   
   // External links
-  openExternal: (url) => ipcRenderer.invoke('open-external', url)
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  
+  // Update API
+  getUpdateInfo: () => ipcRenderer.invoke('get-update-info'),
+  openReleasePage: () => ipcRenderer.invoke('open-release-page'),
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (event, updateInfo) => {
+      callback(updateInfo);
+    });
+  }
 });
