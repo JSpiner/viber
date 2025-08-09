@@ -10,6 +10,47 @@ class StatisticsManager {
     this.initializeDateInputs();
   }
 
+  // Helper function to extract project name from various path formats
+  extractProjectName(fullProjectName) {
+    if (!fullProjectName) return 'Unknown';
+    
+    const trimmed = fullProjectName.trim();
+    
+    // First, normalize the path format
+    // Convert dash-separated format to slash-separated
+    let normalizedPath = trimmed;
+    if (trimmed.startsWith('-')) {
+      // Format: -Users-jspiner-src-projectname
+      // Convert to: /Users/jspiner/src/projectname
+      normalizedPath = '/' + trimmed.substring(1).replace(/-/g, '/');
+    }
+    
+    // Now process the normalized path
+    if (normalizedPath.includes('/')) {
+      // Format: /Users/jspiner/src/projectname or /Users/jspiner/projectname
+      // Split by '/' and skip first 3 parts (/Users/jspiner)
+      const parts = normalizedPath.split('/').filter(p => p); // filter removes empty strings
+      if (parts.length >= 3) {
+        // Remove 'Users' and 'jspiner', keep everything else
+        const projectPath = parts.slice(2).join('/');
+        
+        // Special handling: if the project is just 'viber' without 'src', add 'src' prefix
+        // This consolidates /Users/jspiner/viber and /Users/jspiner/src/viber
+        if (projectPath === 'viber') {
+          return 'src/viber';
+        }
+        
+        return projectPath;
+      } else if (parts.length > 0) {
+        // If less than 3 parts, return the last part
+        return parts[parts.length - 1];
+      }
+    }
+    
+    // Unknown format, use as-is
+    return trimmed;
+  }
+
   initializeEventListeners() {
     // View toggle - use event delegation on the parent container
     const viewToggle = document.querySelector('.view-toggle');
@@ -484,7 +525,7 @@ class StatisticsManager {
         <div class="session-item" data-index="${index}">
           <div class="session-header">
             <div>
-              <div class="session-title">${session.projectName}</div>
+              <div class="session-title">${this.extractProjectName(session.projectName)}</div>
               <div class="session-meta">
                 <span>${formattedDate}</span>
                 <span>Duration: ${session.duration}</span>
@@ -522,6 +563,7 @@ class StatisticsManager {
     if (this.timelineChart) {
       this.timelineChart.destroy();
     }
+    
 
     // Get date filter values
     const startDateStr = document.getElementById('startDate').value;
@@ -550,14 +592,11 @@ class StatisticsManager {
 
     // Process sessions and group by project
     sessionData.forEach(session => {
-      // Extract the main project name (last part of path)
+      // Extract the main project name from various path formats
       const fullProjectName = (session.projectName || 'Unknown').trim();
-      let projectName = fullProjectName.split('/').pop() || 'Unknown';
       
-      // Special handling for viber-related projects
-      if (projectName === 'deprecated' && fullProjectName.includes('viber')) {
-        projectName = 'viber';
-      }
+      // Use the centralized extraction function
+      const projectName = this.extractProjectName(fullProjectName);
       
       if (!projectGroups[projectName]) {
         projectGroups[projectName] = [];
@@ -581,28 +620,9 @@ class StatisticsManager {
       });
     });
     
-    // Debug: Log grouping results
-    console.log('Session Timeline Grouping:');
-    console.log(`- Total sessions: ${sessionData.length}`);
-    console.log(`- Unique projects: ${Object.keys(projectGroups).length}`);
-    
-    // Check for viber-related projects
-    const viberProjects = Object.keys(projectGroups).filter(name => 
-      name.toLowerCase().includes('viber')
-    );
-    console.log(`- Viber-related projects: ${viberProjects.length}`);
-    viberProjects.forEach(name => {
-      console.log(`  "${name}" (${projectGroups[name].length} sessions)`);
-    });
-    
-    // Log all project names
-    console.log('All project names:');
-    Object.keys(projectGroups).forEach(name => {
-      console.log(`  "${name}"`);
-    });
 
-    // Create labels for Y axis (project names)
-    const projectNames = Object.keys(projectGroups);
+    // Create labels for Y axis (project names) - Sort for consistency
+    const projectNames = Object.keys(projectGroups).sort();
     
     // Create datasets - one bar per session
     const chartData = [];
@@ -616,7 +636,7 @@ class StatisticsManager {
       sessions.forEach(session => {
         chartData.push({
           x: [session.start, session.end],
-          y: yIndex,
+          y: projectName,  // Use category name instead of index
           sessionId: session.sessionId,
           cost: session.cost,
           tokens: session.tokens,
@@ -672,6 +692,8 @@ class StatisticsManager {
             }
           },
           y: {
+            type: 'category',
+            labels: projectNames,
             grid: {
               color: '#3a3a3c'
             },
@@ -679,7 +701,8 @@ class StatisticsManager {
               color: '#969696',
               font: {
                 size: 11
-              }
+              },
+              autoSkip: false
             }
           }
         },
