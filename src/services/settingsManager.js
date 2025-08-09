@@ -12,7 +12,8 @@ class SettingsManager {
           alertThreshold: 90,
           updateFrequency: 5,
           notifyOnReset: false
-        }
+        },
+        subscriptionTier: 'pro' // 'pro', 'max5x', 'max20x'
       }
     });
   }
@@ -35,6 +36,14 @@ class SettingsManager {
 
   setStatusBarSettings(settings) {
     this.store.set('statusBar', settings);
+  }
+
+  getSubscriptionTier() {
+    return this.store.get('subscriptionTier');
+  }
+
+  setSubscriptionTier(tier) {
+    this.store.set('subscriptionTier', tier);
   }
 
   reset() {

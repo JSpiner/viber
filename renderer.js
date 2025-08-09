@@ -34,13 +34,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (previousTab === 'now' && targetTab !== 'now') {
       // Stop the second-by-second updates when leaving Now tab
       window.nowManager?.destroy();
+      window.nowManager = null;
     }
     
     // Load data when tabs are activated
     if (targetTab === 'statistics') {
       setTimeout(() => window.statisticsManager?.loadStatistics(), 100);
     } else if (targetTab === 'now') {
-      setTimeout(() => window.nowManager?.loadNowData(), 100);
+      setTimeout(() => {
+        // Recreate NowManager if it doesn't exist or was destroyed
+        if (!window.nowManager) {
+          window.nowManager = new NowManager();
+        }
+        window.nowManager?.loadNowData();
+      }, 100);
     } else if (targetTab === 'agents') {
       setTimeout(() => {
         if (typeof window.initializeAgentsUI === 'function') {
@@ -65,6 +72,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load Now tab data on startup since it's the default tab
   setTimeout(() => {
     console.log('Loading Now tab data on startup...');
+    // Ensure NowManager exists before loading data
+    if (!window.nowManager) {
+      window.nowManager = new NowManager();
+    }
     window.nowManager?.loadNowData();
   }, 500);
 

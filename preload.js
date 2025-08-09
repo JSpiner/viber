@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadRecentUsage: () => ipcRenderer.invoke('load-recent-usage'),
   loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getSubscriptionTier: () => ipcRenderer.invoke('get-subscription-tier'),
+  setSubscriptionTier: (tier) => ipcRenderer.invoke('set-subscription-tier', tier),
   onStatisticsUpdate: (callback) => ipcRenderer.on('statistics-update', callback),
   onSwitchTab: (callback) => ipcRenderer.on('switch-to-tab', callback),
   

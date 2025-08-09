@@ -8,10 +8,36 @@ class NowManager {
     this.weeklyChart = null;
     this.updateInterval = null;
     
-    // Load subscription tier from localStorage or use default
-    this.subscriptionTier = localStorage.getItem('subscriptionTier') || 'pro'; // 'pro', 'max5x', 'max20x'
+    // Default value, will be loaded async from electron-store
+    this.subscriptionTier = 'pro'; // 'pro', 'max5x', 'max20x'
+    
+    // Load subscription tier from electron-store via IPC
+    this.loadSubscriptionTier();
     
     this.initializeEventListeners();
+  }
+
+  async loadSubscriptionTier() {
+    try {
+      const tier = await window.electronAPI.getSubscriptionTier();
+      console.log('[NowManager] Loaded subscription tier from electron-store:', tier);
+      this.subscriptionTier = tier || 'pro';
+      
+      // Update dropdown if it exists
+      const tierSelector = document.getElementById('subscriptionTier');
+      if (tierSelector) {
+        console.log('[NowManager] Setting dropdown to loaded value:', this.subscriptionTier);
+        tierSelector.value = this.subscriptionTier;
+      }
+      
+      // Update display after loading tier
+      if (this.recentUsageData.length > 0) {
+        this.updateDisplay();
+      }
+    } catch (error) {
+      console.error('[NowManager] Error loading subscription tier:', error);
+      this.subscriptionTier = 'pro';
+    }
   }
 
   // Helper function to format date as YYYY-MM-DD HH:MM:SS
@@ -28,23 +54,75 @@ class NowManager {
   }
 
   initializeEventListeners() {
-    // Subscription tier selector if exists
+    // Wait for next tick to ensure DOM is ready - increased delay to ensure DOM is fully loaded
+    setTimeout(() => {
+      const tierSelector = document.getElementById('subscriptionTier');
+      console.log('[initializeEventListeners] Looking for dropdown element...');
+      
+      if (tierSelector) {
+        console.log('[initializeEventListeners] Dropdown found!');
+        console.log('[initializeEventListeners] Current dropdown value before setting:', tierSelector.value);
+        console.log('[initializeEventListeners] Available options:', Array.from(tierSelector.options).map(o => o.value));
+        console.log('[initializeEventListeners] Trying to set to:', this.subscriptionTier);
+        
+        // Set the selected value from localStorage
+        tierSelector.value = this.subscriptionTier;
+        console.log('[initializeEventListeners] Dropdown value after setting:', tierSelector.value);
+        
+        // Verify the value was actually set by checking if it matches
+        if (tierSelector.value !== this.subscriptionTier) {
+          console.log('[initializeEventListeners] Direct assignment failed, trying alternative method...');
+          // Try setting by finding the matching option
+          const matchingOption = Array.from(tierSelector.options).find(opt => opt.value === this.subscriptionTier);
+          if (matchingOption) {
+            matchingOption.selected = true;
+            console.log('[initializeEventListeners] Set using option.selected = true');
+          } else {
+            console.log('[initializeEventListeners] ERROR: No matching option found for:', this.subscriptionTier);
+          }
+        }
+        
+        tierSelector.addEventListener('change', async (e) => {
+          console.log('[Dropdown Change Event] New value:', e.target.value);
+          this.subscriptionTier = e.target.value;
+          
+          // Save to electron-store via IPC
+          try {
+            const success = await window.electronAPI.setSubscriptionTier(this.subscriptionTier);
+            console.log('[Dropdown Change Event] Saved to electron-store:', this.subscriptionTier, 'Success:', success);
+          } catch (error) {
+            console.error('[Dropdown Change Event] Error saving subscription tier:', error);
+          }
+          
+          this.updateDisplay();
+        });
+      } else {
+        console.log('[initializeEventListeners] ERROR: Dropdown element not found!');
+      }
+    }, 100); // Increased delay from 0 to 100ms
+  }
+
+  ensureDropdownValueSet() {
     const tierSelector = document.getElementById('subscriptionTier');
-    if (tierSelector) {
-      // Set the selected value from localStorage
+    if (tierSelector && tierSelector.value !== this.subscriptionTier) {
       tierSelector.value = this.subscriptionTier;
       
-      tierSelector.addEventListener('change', (e) => {
-        this.subscriptionTier = e.target.value;
-        // Save to localStorage
-        localStorage.setItem('subscriptionTier', this.subscriptionTier);
-        this.updateDisplay();
-      });
+      // If still not set correctly, try the alternate approach
+      if (tierSelector.value !== this.subscriptionTier) {
+        const matchingOption = Array.from(tierSelector.options).find(opt => opt.value === this.subscriptionTier);
+        if (matchingOption) {
+          matchingOption.selected = true;
+        }
+      }
     }
   }
 
   async loadNowData() {
     console.log('loadNowData called');
+    
+    // Re-initialize dropdown value to ensure it's set correctly
+    this.ensureDropdownValueSet();
+    
     try {
       // Load recent token usage data
       console.log('Calling electronAPI.loadRecentUsage...');

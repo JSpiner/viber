@@ -206,6 +206,39 @@ ipcMain.handle('save-settings', async (event, settings) => {
   }
 });
 
+// Subscription tier IPC handlers
+ipcMain.handle('get-subscription-tier', async () => {
+  console.log('IPC: get-subscription-tier called');
+  try {
+    if (!settingsManager) {
+      settingsManager = new SettingsManager();
+    }
+    
+    const tier = settingsManager.getSubscriptionTier();
+    console.log('Subscription tier loaded:', tier);
+    return tier;
+  } catch (error) {
+    console.error('Error loading subscription tier:', error);
+    return 'pro'; // Default to pro on error
+  }
+});
+
+ipcMain.handle('set-subscription-tier', async (event, tier) => {
+  console.log('IPC: set-subscription-tier called with:', tier);
+  try {
+    if (!settingsManager) {
+      settingsManager = new SettingsManager();
+    }
+    
+    settingsManager.setSubscriptionTier(tier);
+    console.log('Subscription tier saved:', tier);
+    return true;
+  } catch (error) {
+    console.error('Error saving subscription tier:', error);
+    return false;
+  }
+});
+
 // Hooks IPC Handlers
 ipcMain.handle('get-installed-hooks', async () => {
   console.log('IPC: get-installed-hooks called');
