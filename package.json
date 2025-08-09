@@ -1,6 +1,6 @@
 {
   "name": "viber",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Claude conversation data analyzer",
   "main": "main.js",
   "scripts": {
