@@ -342,118 +342,255 @@ body {
 }
 
 .session-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  /* Container for the sessions table */
 }
 
-.session-item {
+/* Sessions Table Styles */
+.sessions-table {
+  width: 100%;
+  border-collapse: collapse;
   background-color: var(--bg-secondary);
-  padding: 20px;
   border-radius: 12px;
+  overflow: hidden;
   border: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.session-item:hover {
+.sessions-table thead {
   background-color: var(--bg-tertiary);
 }
 
-.session-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+.sessions-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.session-title {
-  font-size: 16px;
+.sessions-table th:nth-child(7),
+.sessions-table th:nth-child(8) {
+  text-align: right;
+}
+
+.sessions-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease;
+}
+
+.sessions-table tbody tr.session-row {
+  cursor: pointer;
+}
+
+.sessions-table tbody tr.session-row:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.sessions-table tbody tr.session-row.expanded {
+  background-color: rgba(14, 99, 156, 0.1);
+  border-bottom: 2px solid var(--accent-color);
+}
+
+.sessions-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.sessions-table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+.sessions-table .project-name {
   font-weight: 500;
   color: var(--text-primary);
+  min-width: 140px;
 }
 
-.session-cost {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--accent-color);
-}
-
-.session-meta {
-  display: flex;
-  gap: 20px;
-  font-size: 14px;
+.sessions-table .prompt-cell {
   color: var(--text-secondary);
-}
-
-.session-details {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-  display: none;
-}
-
-.session-item.expanded .session-details {
-  display: block;
-}
-
-.model-breakdown {
-  margin-top: 12px;
-}
-
-.model-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  font-size: 14px;
-}
-
-.model-name {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.token-details {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-top: 8px;
-  padding: 12px;
-  background-color: var(--bg-primary);
-  border-radius: 8px;
-}
-
-.token-type {
-  text-align: center;
-}
-
-.token-label {
   font-size: 12px;
-  color: var(--text-secondary);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.sessions-table .date-time {
+  min-width: 120px;
+}
+
+.sessions-table .date {
+  color: var(--text-primary);
+  font-weight: 500;
   margin-bottom: 4px;
 }
 
-.token-value {
+.sessions-table .time {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.sessions-table .duration {
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.sessions-table .messages {
+  color: var(--text-secondary);
+  text-align: right;
+  min-width: 60px;
+}
+
+.sessions-table .models-cell {
+  min-width: 180px;
+}
+
+.model-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.model-row .model-name {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.model-row .model-tokens {
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 11px;
+  margin-left: 8px;
+}
+
+.sessions-table .total-tokens {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  text-align: right;
+}
+
+.sessions-table .cost {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-color);
+  text-align: right;
+  min-width: 70px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+/* Session Details Row Styles */
+.session-details-row td {
+  padding: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.prompts-list {
+  padding: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.prompts-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.prompt-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+.prompt-item:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.prompt-item:last-child {
+  margin-bottom: 0;
+}
+
+.prompt-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--accent-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.prompt-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt-text {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  word-wrap: break-word;
+}
+
+.prompt-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.prompt-stats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prompt-duration {
+  color: var(--text-tertiary);
+}
+
+.prompt-tokens {
+  color: var(--text-secondary);
+}
+
+.prompt-cost {
+  color: var(--accent-color);
+  font-weight: 500;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+}
+
+.prompt-responses {
+  color: #ffa500;
   font-weight: 500;
 }
 
-
-.session-id {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-  font-family: monospace;
+.no-prompts {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
 }
 
-.session-totals {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-  font-size: 14px;
-  color: var(--text-primary);
-}
+
 
 /* Concurrent Sessions Styles */
 .concurrent-sessions-container {

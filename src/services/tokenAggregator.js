@@ -37,14 +37,21 @@ class TokenAggregator {
   calculateCost(usage, model) {
     const pricing = this.pricing[model] || this.pricing['claude-3-sonnet-20240229'];
     
+    // Ensure all values are numbers to prevent NaN
+    const inputTokens = usage.inputTokens || 0;
+    const outputTokens = usage.outputTokens || 0;
+    const cacheCreateTokens = usage.cacheCreateTokens || 0;
+    const cacheReadTokens = usage.cacheReadTokens || 0;
+    
     const cost = {
-      input: (usage.inputTokens / 1000) * pricing.input,
-      output: (usage.outputTokens / 1000) * pricing.output,
-      cacheCreate: (usage.cacheCreateTokens / 1000) * pricing.cacheCreate,
-      cacheRead: (usage.cacheReadTokens / 1000) * pricing.cacheRead
+      input: (inputTokens / 1000) * pricing.input,
+      output: (outputTokens / 1000) * pricing.output,
+      cacheCreate: (cacheCreateTokens / 1000) * pricing.cacheCreate,
+      cacheRead: (cacheReadTokens / 1000) * pricing.cacheRead
     };
     
-    cost.total = cost.input + cost.output + cost.cacheCreate + cost.cacheRead;
+    // Ensure total is not NaN
+    cost.total = (cost.input || 0) + (cost.output || 0) + (cost.cacheCreate || 0) + (cost.cacheRead || 0);
     
     return cost;
   }
@@ -107,7 +114,7 @@ class TokenAggregator {
     return Object.values(dailyUsage).sort((a, b) => b.date.localeCompare(a.date));
   }
 
-  aggregateBySession(tokenUsageData) {
+  aggregateBySession(tokenUsageData, sessionPrompts = {}, sessionDetails = {}) {
     const sessionUsage = {};
 
     tokenUsageData.forEach(entry => {
@@ -117,6 +124,8 @@ class TokenAggregator {
         sessionUsage[key] = {
           sessionId: entry.sessionId,
           projectName: entry.projectName,
+          firstPrompt: sessionPrompts[key] || entry.firstPrompt || 'No prompt found',
+          prompts: sessionDetails[key] || [],
           timestamps: [],
           models: {},
           totals: {
@@ -173,6 +182,26 @@ class TokenAggregator {
       session.duration = this.formatDuration(duration);
       
       delete session.timestamps;
+      
+      // Calculate cost for each prompt
+      if (session.prompts && session.prompts.length > 0) {
+        session.prompts = session.prompts.map(prompt => {
+          // Convert tokens format to match calculateCost expectations
+          const usageFormat = {
+            inputTokens: prompt.tokens.input || 0,
+            outputTokens: prompt.tokens.output || 0,
+            cacheCreateTokens: prompt.tokens.cacheCreate || 0,
+            cacheReadTokens: prompt.tokens.cacheRead || 0
+          };
+          const cost = this.calculateCost(usageFormat, prompt.model);
+          const duration = new Date(prompt.responseTime) - new Date(prompt.timestamp);
+          return {
+            ...prompt,
+            cost: cost.total || 0,
+            duration: this.formatDuration(duration)
+          };
+        });
+      }
     });
 
     return Object.values(sessionUsage).sort((a, b) => 

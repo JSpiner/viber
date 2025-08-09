@@ -554,72 +554,118 @@ class StatisticsManager {
     
     const sessionList = document.getElementById('sessionList');
     
-    const html = sessionData.map((session, index) => {
-      const startTime = new Date(session.startTime);
-      const formattedDate = startTime.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+    // Create table structure
+    const tableHtml = `
+      <table class="sessions-table">
+        <thead>
+          <tr>
+            <th>Project Name</th>
+            <th>First Prompt</th>
+            <th>Date/Time</th>
+            <th>Duration</th>
+            <th>Messages</th>
+            <th>Models Used</th>
+            <th>Total Tokens</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sessionData.map((session, index) => {
+            const startTime = new Date(session.startTime);
+            const formattedDate = startTime.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric'
+            });
+            const formattedTime = startTime.toLocaleTimeString('en-US', { 
+              hour: '2-digit',
+              minute: '2-digit'
+            });
 
-      const modelsHtml = Object.entries(session.models).map(([model, usage]) => `
-        <div class="model-item">
-          <span class="model-name">${model.replace('claude-', '').replace('-20240229', '').replace('-20250514', '')}</span>
-          <div class="token-details">
-            <div class="token-type">
-              <div class="token-label">Input</div>
-              <div class="token-value">${usage.inputTokens.toLocaleString()}</div>
-            </div>
-            <div class="token-type">
-              <div class="token-label">Output</div>
-              <div class="token-value">${usage.outputTokens.toLocaleString()}</div>
-            </div>
-            <div class="token-type">
-              <div class="token-label">Cache Create</div>
-              <div class="token-value">${usage.cacheCreateTokens.toLocaleString()}</div>
-            </div>
-            <div class="token-type">
-              <div class="token-label">Cache Read</div>
-              <div class="token-value">${usage.cacheReadTokens.toLocaleString()}</div>
-            </div>
-          </div>
-        </div>
-      `).join('');
+            const modelsHtml = Object.entries(session.models).map(([model, usage]) => {
+              const modelName = model.replace('claude-', '').replace('-20240229', '').replace('-20250514', '');
+              const totalModelTokens = usage.inputTokens + usage.outputTokens + usage.cacheCreateTokens + usage.cacheReadTokens;
+              return `
+                <div class="model-row">
+                  <span class="model-name">${modelName}:</span>
+                  <span class="model-tokens">${totalModelTokens.toLocaleString()}</span>
+                </div>
+              `;
+            }).join('');
 
-      return `
-        <div class="session-item" data-index="${index}">
-          <div class="session-header">
-            <div>
-              <div class="session-title">${this.extractProjectName(session.projectName)}</div>
-              <div class="session-meta">
-                <span>${formattedDate}</span>
-                <span>Duration: ${session.duration}</span>
-                <span>${session.messageCount} messages</span>
+            const promptsHtml = session.prompts && session.prompts.length > 0 ? `
+              <div class="prompts-list">
+                <div class="prompts-header">
+                  <strong>All User Prompts in Session</strong>
+                </div>
+                ${session.prompts.map((prompt, promptIndex) => `
+                  <div class="prompt-item">
+                    <div class="prompt-number">#${promptIndex + 1}</div>
+                    <div class="prompt-content">
+                      <div class="prompt-text">${prompt.prompt}</div>
+                      <div class="prompt-stats">
+                        <span class="prompt-duration">⏱ ${prompt.duration}</span>
+                        <span class="prompt-tokens">🔢 ${prompt.tokens.total.toLocaleString()} tokens</span>
+                        <span class="prompt-cost">💵 $${prompt.cost.toFixed(4)}</span>
+                        ${prompt.responseCount > 1 ? `<span class="prompt-responses">🔄 ${prompt.responseCount} responses</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
               </div>
-            </div>
-            <div class="session-cost">$${session.totals.totalCost.toFixed(2)}</div>
-          </div>
-          <div class="session-details">
-            <div class="session-id">Session ID: ${session.sessionId}</div>
-            <div class="model-breakdown">
-              ${modelsHtml}
-            </div>
-            <div class="session-totals">
-              <strong>Total Tokens:</strong> ${session.totals.totalTokens.toLocaleString()}
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+            ` : '<div class="no-prompts">No prompts found in this session</div>';
 
-    sessionList.innerHTML = html;
+            return `
+              <tr class="session-row" data-index="${index}" data-session-key="${session.sessionId}_${session.projectName}">
+                <td class="project-name">${this.extractProjectName(session.projectName)}</td>
+                <td class="prompt-cell" title="${(session.firstPrompt || 'No prompt found').replace(/"/g, '&quot;')}">${session.firstPrompt || 'No prompt found'}</td>
+                <td class="date-time">
+                  <div class="date">${formattedDate}</div>
+                  <div class="time">${formattedTime}</div>
+                </td>
+                <td class="duration">${session.duration}</td>
+                <td class="messages">${session.messageCount}</td>
+                <td class="models-cell">
+                  ${modelsHtml}
+                </td>
+                <td class="total-tokens">${session.totals.totalTokens.toLocaleString()}</td>
+                <td class="cost">$${session.totals.totalCost.toFixed(2)}</td>
+              </tr>
+              <tr class="session-details-row" style="display: none;">
+                <td colspan="8">
+                  ${promptsHtml}
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
 
-    // Add click handlers for expanding sessions
-    sessionList.querySelectorAll('.session-item').forEach(item => {
-      item.addEventListener('click', () => {
-        item.classList.toggle('expanded');
+    sessionList.innerHTML = tableHtml;
+    
+    // Add click handlers for expanding/collapsing rows
+    const sessionRows = sessionList.querySelectorAll('.session-row');
+    sessionRows.forEach(row => {
+      row.addEventListener('click', () => {
+        const detailsRow = row.nextElementSibling;
+        if (detailsRow && detailsRow.classList.contains('session-details-row')) {
+          const isExpanded = detailsRow.style.display !== 'none';
+          
+          // Close all other expanded rows
+          sessionList.querySelectorAll('.session-details-row').forEach(r => {
+            r.style.display = 'none';
+          });
+          sessionList.querySelectorAll('.session-row').forEach(r => {
+            r.classList.remove('expanded');
+          });
+          
+          // Toggle current row
+          if (!isExpanded) {
+            detailsRow.style.display = 'table-row';
+            row.classList.add('expanded');
+          }
+        }
       });
     });
   }
