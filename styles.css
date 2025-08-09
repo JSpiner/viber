@@ -455,6 +455,27 @@ body {
   color: var(--text-primary);
 }
 
+/* Concurrent Sessions Styles */
+.concurrent-sessions-container {
+  background-color: var(--bg-secondary);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 24px;
+}
+
+.concurrent-sessions-container h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.concurrent-chart-container {
+  height: 200px;
+  position: relative;
+}
+
 /* Session Timeline Styles */
 .session-timeline-container {
   background-color: var(--bg-secondary);
@@ -1111,4 +1132,85 @@ body {
   color: var(--text-secondary);
   opacity: 0.6;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}
+/* Project Statistics Styles */
+.project-statistics-container {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.project-statistics-container h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.project-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+}
+
+.project-stat-card {
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 15px;
+  transition: transform 0.2s ease;
+}
+
+.project-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.project-stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.project-stat-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.project-stat-sessions {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.project-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.project-stat-label {
+  color: var(--text-secondary);
+}
+
+.project-stat-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.project-stat-value.highlight {
+  color: #4ecdc4;
+  font-weight: 600;
+}
+
+.project-stat-value.cost {
+  color: #ffc856;
 }

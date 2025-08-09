@@ -5,6 +5,7 @@ class StatisticsManager {
     this.currentView = 'daily';
     this.dailyChart = null;
     this.timelineChart = null;
+    this.concurrentChart = null;
     
     this.initializeEventListeners();
     this.initializeDateInputs();
@@ -481,9 +482,75 @@ class StatisticsManager {
     return pricing[model] || pricing['claude-3-sonnet-20240229'];
   }
 
+  calculateConcurrentSessions(sessionData, filterStartDate, filterEndDate) {
+    // Use provided dates or get from filter inputs
+    if (!filterStartDate || !filterEndDate) {
+      const startDateStr = document.getElementById('startDate').value;
+      const endDateStr = document.getElementById('endDate').value;
+      
+      filterStartDate = new Date(startDateStr);
+      filterStartDate.setHours(0, 0, 0, 0);
+      
+      filterEndDate = new Date(endDateStr);
+      filterEndDate.setHours(23, 59, 59, 999);
+    }
+
+    // Create time points every 2 minutes within the filtered date range for smoother curve
+    const timePoints = [];
+    const intervalMs = 2 * 60 * 1000; // 2 minutes for many more data points
+    
+    for (let time = filterStartDate.getTime(); time <= filterEndDate.getTime(); time += intervalMs) {
+      timePoints.push(new Date(time));
+    }
+
+    // Calculate concurrent sessions at each time point
+    const concurrentCounts = timePoints.map(timePoint => {
+      let count = 0;
+      
+      sessionData.forEach(session => {
+        const sessionStart = new Date(session.startTime);
+        const sessionEnd = new Date(session.endTime);
+        
+        // Check if the session was running at this time point
+        if (timePoint >= sessionStart && timePoint <= sessionEnd) {
+          count++;
+        }
+      });
+      
+      return {
+        time: timePoint,
+        count: count
+      };
+    });
+
+    // Apply simple moving average for smoother curve (window of 3)
+    const smoothedCounts = concurrentCounts.map((point, index) => {
+      const start = Math.max(0, index - 1);
+      const end = Math.min(concurrentCounts.length - 1, index + 1);
+      let sum = 0;
+      let count = 0;
+      
+      for (let i = start; i <= end; i++) {
+        sum += concurrentCounts[i].count;
+        count++;
+      }
+      
+      return {
+        time: point.time,
+        count: Math.round(sum / count)
+      };
+    });
+    
+    return smoothedCounts;
+  }
+
+
   renderSessionView(sessionData) {
-    // Render timeline chart first
-    this.renderTimelineChart(sessionData);
+    // Render combined timeline and concurrent sessions chart
+    this.renderCombinedChart(sessionData);
+    
+    // Render project statistics
+    this.renderProjectStatistics(sessionData);
     
     const sessionList = document.getElementById('sessionList');
     
@@ -557,14 +624,144 @@ class StatisticsManager {
     });
   }
 
-  renderTimelineChart(sessionData) {
+  renderProjectStatistics(sessionData) {
+    // Calculate statistics per project
+    const projectStats = {};
+    
+    sessionData.forEach(session => {
+      const projectName = this.extractProjectName(session.projectName);
+      
+      if (!projectStats[projectName]) {
+        projectStats[projectName] = {
+          sessions: 0,
+          totalDuration: 0,
+          totalTokens: 0,
+          totalCost: 0,
+          models: {},
+          firstSession: null,
+          lastSession: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheTokens: 0
+        };
+      }
+      
+      const stats = projectStats[projectName];
+      stats.sessions++;
+      
+      // Calculate duration
+      const startTime = new Date(session.startTime);
+      const endTime = new Date(session.endTime);
+      const duration = endTime - startTime;
+      stats.totalDuration += duration;
+      
+      // Aggregate tokens and costs
+      stats.totalTokens += session.totals.totalTokens;
+      stats.totalCost += session.totals.totalCost;
+      stats.inputTokens += session.totals.inputTokens;
+      stats.outputTokens += session.totals.outputTokens;
+      stats.cacheTokens += (session.totals.cacheCreateTokens + session.totals.cacheReadTokens);
+      
+      // Track first and last session
+      if (!stats.firstSession || startTime < new Date(stats.firstSession)) {
+        stats.firstSession = session.startTime;
+      }
+      if (!stats.lastSession || startTime > new Date(stats.lastSession)) {
+        stats.lastSession = session.startTime;
+      }
+      
+      // Track model usage
+      Object.entries(session.models).forEach(([model, usage]) => {
+        if (!stats.models[model]) {
+          stats.models[model] = 0;
+        }
+        stats.models[model] += usage.totalTokens;
+      });
+    });
+    
+    // Sort projects by total tokens (descending)
+    const sortedProjects = Object.entries(projectStats)
+      .sort((a, b) => b[1].totalTokens - a[1].totalTokens);
+    
+    // Render statistics cards
+    const container = document.getElementById('projectStatistics');
+    
+    const html = sortedProjects.map(([projectName, stats]) => {
+      const avgDuration = stats.totalDuration / stats.sessions;
+      const avgTokens = Math.round(stats.totalTokens / stats.sessions);
+      
+      // Format duration
+      const formatDuration = (ms) => {
+        const hours = Math.floor(ms / (1000 * 60 * 60));
+        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+        if (hours > 0) {
+          return `${hours}h ${minutes}m`;
+        }
+        return `${minutes}m`;
+      };
+      
+      // Find most used model
+      const mostUsedModel = Object.entries(stats.models)
+        .sort((a, b) => b[1] - a[1])[0];
+      
+      // Calculate efficiency (tokens per minute)
+      const tokensPerMinute = Math.round(stats.totalTokens / (stats.totalDuration / 60000));
+      
+      return `
+        <div class="project-stat-card">
+          <div class="project-stat-header">
+            <div class="project-stat-name">${projectName}</div>
+            <div class="project-stat-sessions">${stats.sessions} sessions</div>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Total Duration</span>
+            <span class="project-stat-value highlight">${formatDuration(stats.totalDuration)}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Total Tokens</span>
+            <span class="project-stat-value">${stats.totalTokens.toLocaleString()}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Total Cost</span>
+            <span class="project-stat-value cost">$${stats.totalCost.toFixed(2)}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Avg Duration/Session</span>
+            <span class="project-stat-value">${formatDuration(avgDuration)}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Avg Tokens/Session</span>
+            <span class="project-stat-value">${avgTokens.toLocaleString()}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Tokens/Minute</span>
+            <span class="project-stat-value">${tokensPerMinute.toLocaleString()}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Most Used Model</span>
+            <span class="project-stat-value">${mostUsedModel ? mostUsedModel[0].replace('claude-', '').replace(/-\d+$/, '') : 'N/A'}</span>
+          </div>
+          <div class="project-stat-row">
+            <span class="project-stat-label">Token Distribution</span>
+            <span class="project-stat-value" style="font-size: 10px;">
+              I:${Math.round(stats.inputTokens/1000)}k O:${Math.round(stats.outputTokens/1000)}k C:${Math.round(stats.cacheTokens/1000)}k
+            </span>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    container.innerHTML = html;
+  }
+
+  renderCombinedChart(sessionData) {
+    console.log('renderCombinedChart called with', sessionData.length, 'sessions');
     const ctx = document.getElementById('timelineChart').getContext('2d');
     
     if (this.timelineChart) {
       this.timelineChart.destroy();
     }
     
-
     // Get date filter values
     const startDateStr = document.getElementById('startDate').value;
     const endDateStr = document.getElementById('endDate').value;
@@ -575,8 +772,63 @@ class StatisticsManager {
     
     const filterEndDate = new Date(endDateStr);
     filterEndDate.setHours(23, 59, 59, 999);
+    
+    // Group sessions by time periods (e.g., by hour or day)
+    const sessionTimeGroups = new Map();
+    
+    sessionData.forEach(session => {
+      const startTime = new Date(session.startTime);
+      const endTime = new Date(session.endTime);
+      
+      // Group by day and hour
+      const startHour = new Date(startTime);
+      startHour.setMinutes(0, 0, 0);
+      
+      const endHour = new Date(endTime);
+      endHour.setMinutes(0, 0, 0);
+      
+      // Add all hours this session spans
+      for (let hour = new Date(startHour); hour <= endHour; hour.setHours(hour.getHours() + 1)) {
+        const hourKey = hour.toISOString();
+        if (!sessionTimeGroups.has(hourKey)) {
+          sessionTimeGroups.set(hourKey, []);
+        }
+        sessionTimeGroups.get(hourKey).push(session);
+      }
+    });
+    
+    // Get sorted unique time periods with data
+    const uniqueTimePeriods = Array.from(sessionTimeGroups.keys()).sort();
+    console.log('Unique time periods with data:', uniqueTimePeriods.length);
+    
+    // Find min and max for the actual data range
+    const actualMinTime = uniqueTimePeriods.length > 0 ? new Date(uniqueTimePeriods[0]) : filterStartDate;
+    const actualMaxTime = uniqueTimePeriods.length > 0 ? new Date(uniqueTimePeriods[uniqueTimePeriods.length - 1]) : filterEndDate;
+    
+    // Calculate concurrent sessions only for periods with data
+    const concurrentData = [];
+    uniqueTimePeriods.forEach(period => {
+      const periodTime = new Date(period);
+      let count = 0;
+      
+      sessionData.forEach(session => {
+        const start = new Date(session.startTime);
+        const end = new Date(session.endTime);
+        
+        if (start <= periodTime && end >= periodTime) {
+          count++;
+        }
+      });
+      
+      concurrentData.push({
+        time: periodTime,
+        count: count
+      });
+    });
+    
+    console.log('Concurrent data points:', concurrentData.length);
 
-    // Group sessions by project name
+    // Group sessions by project name for timeline
     const projectGroups = {};
     const projectColors = {};
     const colorPalette = [
@@ -592,10 +844,7 @@ class StatisticsManager {
 
     // Process sessions and group by project
     sessionData.forEach(session => {
-      // Extract the main project name from various path formats
       const fullProjectName = (session.projectName || 'Unknown').trim();
-      
-      // Use the centralized extraction function
       const projectName = this.extractProjectName(fullProjectName);
       
       if (!projectGroups[projectName]) {
@@ -619,24 +868,24 @@ class StatisticsManager {
         originalSession: session
       });
     });
-    
 
     // Create labels for Y axis (project names) - Sort for consistency
     const projectNames = Object.keys(projectGroups).sort();
+    console.log('Project names:', projectNames);
     
-    // Create datasets - one bar per session
+    // Create bar chart data for sessions
     const chartData = [];
     const backgroundColors = [];
     const borderColors = [];
     
-    projectNames.forEach((projectName, yIndex) => {
+    projectNames.forEach((projectName) => {
       const sessions = projectGroups[projectName];
       const color = projectColors[projectName];
       
       sessions.forEach(session => {
         chartData.push({
           x: [session.start, session.end],
-          y: projectName,  // Use category name instead of index
+          y: projectName,
           sessionId: session.sessionId,
           cost: session.cost,
           tokens: session.tokens,
@@ -647,38 +896,75 @@ class StatisticsManager {
         borderColors.push(color.border);
       });
     });
+    
+    console.log('Chart data points:', chartData.length);
+    console.log('Sample chart data:', chartData[0]);
 
-    const datasets = [{
-      label: 'Sessions',
-      data: chartData,
-      backgroundColor: backgroundColors,
-      borderColor: borderColors,
-      borderWidth: 1,
-      borderSkipped: false,
-      barPercentage: 0.8,
-      categoryPercentage: 0.9,
-      minBarLength: 2
-    }];
-
-    // Create the timeline chart
-    this.timelineChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: projectNames,
-        datasets: datasets
-      },
+    // Create mixed chart with both datasets
+    console.log('Creating mixed chart with', concurrentData.length, 'concurrent points and', chartData.length, 'session bars');
+    
+    // Format concurrent data for the line chart
+    const lineChartData = concurrentData.map(point => ({
+      x: point.time,
+      y: point.count
+    }));
+    console.log('Line chart data points:', lineChartData.length, 'First few:', lineChartData.slice(0, 5));
+    
+    try {
+      this.timelineChart = new Chart(ctx, {
+        data: {
+          labels: projectNames,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Sessions',
+              data: chartData,
+              backgroundColor: backgroundColors,
+              borderColor: borderColors,
+              borderWidth: 1,
+              borderSkipped: false,
+              barPercentage: 0.8,
+              categoryPercentage: 0.9,
+              minBarLength: 2,
+              yAxisID: 'y',
+              order: 1  // Draw bars first (lower order = drawn first)
+            },
+            {
+              type: 'line',
+              label: 'Concurrent Sessions',
+              data: lineChartData,
+              borderColor: 'rgba(150, 150, 150, 0.4)',  // Gray with lower opacity
+              backgroundColor: 'transparent',  // No fill background
+              borderWidth: 2,  // Slightly thicker for visibility
+              borderJoinStyle: 'round',  // Round joins for smoother appearance
+              fill: false,  // Disable fill
+              tension: 0.4,  // Higher tension for smoother curve
+              cubicInterpolationMode: 'monotone',  // Smooth monotone interpolation
+              spanGaps: true,  // Connect points even if there are gaps
+              pointRadius: 0,
+              pointHoverRadius: 0,  // No hover effect
+              pointHitRadius: 0,  // No hit detection for tooltips
+              yAxisID: 'y1',
+              order: 2  // Draw line on top (higher order = drawn later)
+            }
+          ]
+        },
       options: {
-        indexAxis: 'y',
+        indexAxis: 'y',  // This is crucial for horizontal bars
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'point',
+          intersect: true  // Only show tooltip when directly hovering over elements
+        },
         scales: {
           x: {
-            type: 'time',
-            min: filterStartDate,
-            max: filterEndDate,
+            type: 'timeseries',  // Use timeseries type for better handling of sparse data
+            min: actualMinTime,
+            max: actualMaxTime,
             time: {
               displayFormats: {
-                hour: 'HH:mm',
+                hour: 'MMM dd HH:mm',
                 day: 'MMM dd'
               },
               tooltipFormat: 'MMM dd, yyyy HH:mm'
@@ -688,12 +974,17 @@ class StatisticsManager {
             },
             ticks: {
               color: '#969696',
-              maxRotation: 0
-            }
+              maxRotation: 45,
+              source: 'data',  // Only show ticks where we have data
+              autoSkip: true,
+              maxTicksLimit: 15  // Limit number of ticks for readability
+            },
+            bounds: 'data'  // Scale bounds based on data, not ticks
           },
           y: {
             type: 'category',
             labels: projectNames,
+            position: 'left',
             grid: {
               color: '#3a3a3c'
             },
@@ -704,26 +995,85 @@ class StatisticsManager {
               },
               autoSkip: false
             }
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            beginAtZero: true,
+            grid: {
+              drawOnChartArea: false
+            },
+            ticks: {
+              color: '#696969',  // Dimmer gray color
+              stepSize: 1,
+              callback: function(value) {
+                return Math.floor(value) === value ? value : '';
+              }
+            },
+            title: {
+              display: true,
+              text: 'Concurrent Sessions',
+              color: '#696969',  // Dimmer gray color
+              font: {
+                size: 10  // Smaller font
+              }
+            }
           }
         },
         plugins: {
           legend: {
-            display: false
+            display: true,
+            position: 'top',
+            labels: {
+              color: '#cccccc',
+              padding: 15,
+              filter: function(item) {
+                return item.text !== 'Sessions';  // Hide Sessions legend, only show Concurrent Sessions
+              }
+            }
           },
           tooltip: {
+            filter: function(tooltipItem) {
+              // Check if it's the bar dataset (index 0) or has sessionId property
+              const isBarChart = tooltipItem.datasetIndex === 0 || 
+                                (tooltipItem.raw && tooltipItem.raw.sessionId);
+              return isBarChart;
+            },
             callbacks: {
               title: function(context) {
+                if (context.length === 0) return '';
                 const item = context[0];
-                const data = chartData[item.dataIndex];
+                // Only process bar chart tooltips
+                if (item.datasetIndex !== 0) return '';
+                
+                const data = item.raw;
+                if (!data || !data.label) return '';
                 return `${data.label} (${data.sessionId})`;
               },
               label: function(context) {
-                const data = chartData[context.dataIndex];
+                // Only process bar chart tooltips
+                if (context.datasetIndex !== 0) return [];
+                
+                const data = context.raw;
+                if (!data || !data.x) return [];
+                
+                const startTime = new Date(data.x[0]);
+                const endTime = new Date(data.x[1]);
                 const duration = data.x[1] - data.x[0];
                 const hours = Math.floor(duration / (1000 * 60 * 60));
                 const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
                 
+                // Format time as "MMM dd HH:mm"
+                const formatTime = (date) => {
+                  const month = date.toLocaleDateString('en-US', { month: 'short' });
+                  const day = date.getDate();
+                  const hour = String(date.getHours()).padStart(2, '0');
+                  const min = String(date.getMinutes()).padStart(2, '0');
+                  return `${month} ${day} ${hour}:${min}`;
+                };
+                
                 return [
+                  `Time: ${formatTime(startTime)} - ${formatTime(endTime)}`,
                   `Duration: ${hours}h ${minutes}m`,
                   `Tokens: ${data.tokens.toLocaleString()}`,
                   `Cost: $${data.cost.toFixed(2)}`
@@ -734,6 +1084,15 @@ class StatisticsManager {
         }
       }
     });
+      console.log('Chart created successfully!');
+    } catch (error) {
+      console.error('Error creating chart:', error);
+    }
+  }
+
+  renderTimelineChart(sessionData) {
+    // This method is now replaced by renderCombinedChart
+    // Keeping empty for backward compatibility
   }
 
   showLoading() {
