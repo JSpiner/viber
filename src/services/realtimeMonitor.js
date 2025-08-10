@@ -154,6 +154,14 @@ class RealtimeMonitor {
     return windows;
   }
 
+  getSubscriptionLimits() {
+    return {
+      pro: { fiveHourTokens: 19000, weeklyTokens: 304000 },
+      max5x: { fiveHourTokens: 88000, weeklyTokens: 1408000 },
+      max20x: { fiveHourTokens: 220000, weeklyTokens: 2816000 }
+    };
+  }
+
   findCurrentSessionStart(allUsage, gapHours = 5) {
     if (allUsage.length === 0) {
       return new Date();
@@ -187,6 +195,62 @@ class RealtimeMonitor {
     return sessionStartDate;
   }
 
+  // New function to find session start with 5-hour limit
+  findSessionStartWithLimit(allUsage, limitHours = 5) {
+    const now = new Date();
+    
+    if (allUsage.length === 0) {
+      return null;
+    }
+    
+    // Sort by timestamp (newest first)
+    const sortedUsage = [...allUsage].sort((a, b) => 
+      new Date(b.timestamp) - new Date(a.timestamp)
+    );
+    
+    // Get the most recent message
+    const mostRecent = new Date(sortedUsage[0].timestamp);
+    
+    // If the most recent message is older than limit hours, no active session
+    const hoursSinceLastActivity = (now - mostRecent) / (1000 * 60 * 60);
+    if (hoursSinceLastActivity >= limitHours) {
+      return null;
+    }
+    
+    // Work backwards to find session start, but not beyond limit hours
+    let sessionStart = mostRecent;
+    const limitTime = new Date(now.getTime() - limitHours * 60 * 60 * 1000);
+    
+    for (let i = 0; i < sortedUsage.length - 1; i++) {
+      const currentTime = new Date(sortedUsage[i].timestamp);
+      const nextTime = new Date(sortedUsage[i + 1].timestamp);
+      
+      // Check if we've hit the time limit
+      if (nextTime < limitTime) {
+        break;
+      }
+      
+      // Check for gap between messages
+      const gapInHours = (currentTime - nextTime) / (1000 * 60 * 60);
+      
+      if (gapInHours >= limitHours) {
+        // Found a gap, session starts at current message
+        break;
+      }
+      
+      // This message is part of the same session
+      sessionStart = nextTime;
+    }
+    
+    // Ensure session start is not older than limit
+    if (sessionStart < limitTime) {
+      sessionStart = limitTime;
+    }
+    
+    console.log(`Session start with ${limitHours}h limit:`, sessionStart.toISOString());
+    return sessionStart;
+  }
+
   calculateWindowUsage(allUsage, windowStart, isWeekly = false) {
     // Check if there's any recent usage data
     if (allUsage.length === 0) {
@@ -203,19 +267,13 @@ class RealtimeMonitor {
       };
     }
 
-    // For 5-hour windows, check if the most recent activity is older than the gap period
+    // Session-based implementation for 5-hour windows
     if (!isWeekly) {
-      const now = new Date();
-      const gapHours = 5;
-      const mostRecentActivity = allUsage
-        .map(item => new Date(item.timestamp))
-        .sort((a, b) => b - a)[0]; // Get most recent timestamp
-
-      const hoursSinceLastActivity = (now - mostRecentActivity) / (1000 * 60 * 60);
+      const sessionStart = this.findSessionStartWithLimit(allUsage, 5);
       
-      // If last activity is older than the gap period, return no active session
-      if (hoursSinceLastActivity >= gapHours) {
-        console.log(`No active 5-hour session - last activity was ${hoursSinceLastActivity.toFixed(1)} hours ago`);
+      // If no active session found
+      if (!sessionStart) {
+        console.log('No active 5-hour session');
         return {
           windowStart: null,
           sessionStart: null,
@@ -228,10 +286,163 @@ class RealtimeMonitor {
           byModel: {}
         };
       }
+      
+      // Calculate session end time (session start + 5 hours)
+      const sessionEnd = new Date(sessionStart.getTime() + 5 * 60 * 60 * 1000);
+      const now = new Date();
+      
+      // Check if session has expired
+      if (now >= sessionEnd) {
+        // Session expired, check for new session
+        const newSessionMessages = allUsage.filter(item => 
+          new Date(item.timestamp) >= sessionEnd
+        );
+        
+        if (newSessionMessages.length > 0) {
+          // Start a new session from the first message after expiry
+          const newSessionStart = this.findSessionStartWithLimit(
+            newSessionMessages, 
+            5
+          );
+          
+          if (!newSessionStart) {
+            console.log('No active session after expiry');
+            return {
+              windowStart: null,
+              sessionStart: null,
+              totalTokens: 0,
+              effectiveTotal: 0,
+              limit: 19000,
+              resetTime: null,
+              rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+              messageCount: 0,
+              byModel: {}
+            };
+          }
+          
+          // Use the new session
+          const actualSessionStart = newSessionStart;
+          const actualSessionEnd = new Date(actualSessionStart.getTime() + 5 * 60 * 60 * 1000);
+          
+          // Get messages within the new session
+          const windowUsage = allUsage.filter(item => {
+            const itemTime = new Date(item.timestamp);
+            return itemTime >= actualSessionStart && itemTime < actualSessionEnd;
+          });
+          
+          // Calculate tokens and return
+          const totalTokens = windowUsage.reduce((sum, item) => 
+            sum + (item.usage.effectiveTotal || 0), 0
+          );
+          
+          const rawTotals = windowUsage.reduce((totals, item) => ({
+            input: totals.input + item.usage.inputTokens,
+            output: totals.output + item.usage.outputTokens,
+            cacheCreate: totals.cacheCreate + item.usage.cacheCreateTokens,
+            cacheRead: totals.cacheRead + item.usage.cacheReadTokens,
+            total: totals.total + item.usage.total
+          }), { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 });
+          
+          const byModel = {};
+          windowUsage.forEach(item => {
+            if (!byModel[item.model]) {
+              byModel[item.model] = {
+                tokens: 0,
+                effectiveTokens: 0,
+                messages: 0
+              };
+            }
+            byModel[item.model].tokens += item.usage.total;
+            byModel[item.model].effectiveTokens += (item.usage.effectiveTotal || 0);
+            byModel[item.model].messages += 1;
+          });
+          
+          const limits = this.getSubscriptionLimits();
+          const limit = limits.pro.fiveHourTokens;
+          
+          console.log(`New session after expiry: ${actualSessionStart.toISOString()}`);
+          
+          return {
+            windowStart: actualSessionStart.toISOString(),
+            sessionStart: actualSessionStart,
+            totalTokens,
+            effectiveTotal: totalTokens,
+            limit: limit,
+            resetTime: actualSessionEnd,
+            rawTotals,
+            messageCount: windowUsage.length,
+            byModel
+          };
+        } else {
+          // No new session after expiry
+          console.log('Session expired, no new activity');
+          return {
+            windowStart: null,
+            sessionStart: null,
+            totalTokens: 0,
+            effectiveTotal: 0,
+            limit: 19000,
+            resetTime: null,
+            rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+            messageCount: 0,
+            byModel: {}
+          };
+        }
+      }
+      
+      // Current session is still active
+      const windowUsage = allUsage.filter(item => {
+        const itemTime = new Date(item.timestamp);
+        return itemTime >= sessionStart && itemTime < sessionEnd;
+      });
+      
+      // Calculate tokens
+      const totalTokens = windowUsage.reduce((sum, item) => 
+        sum + (item.usage.effectiveTotal || 0), 0
+      );
+      
+      const rawTotals = windowUsage.reduce((totals, item) => ({
+        input: totals.input + item.usage.inputTokens,
+        output: totals.output + item.usage.outputTokens,
+        cacheCreate: totals.cacheCreate + item.usage.cacheCreateTokens,
+        cacheRead: totals.cacheRead + item.usage.cacheReadTokens,
+        total: totals.total + item.usage.total
+      }), { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 });
+      
+      const byModel = {};
+      windowUsage.forEach(item => {
+        if (!byModel[item.model]) {
+          byModel[item.model] = {
+            tokens: 0,
+            effectiveTokens: 0,
+            messages: 0
+          };
+        }
+        byModel[item.model].tokens += item.usage.total;
+        byModel[item.model].effectiveTokens += (item.usage.effectiveTotal || 0);
+        byModel[item.model].messages += 1;
+      });
+      
+      const limits = this.getSubscriptionLimits();
+      const limit = limits.pro.fiveHourTokens;
+      
+      console.log(`Active session: ${sessionStart.toISOString()} to ${sessionEnd.toISOString()}`);
+      console.log(`Tokens used: ${totalTokens} / ${limit}`);
+      
+      return {
+        windowStart: sessionStart.toISOString(),
+        sessionStart: sessionStart,
+        totalTokens,
+        effectiveTotal: totalTokens,
+        limit: limit,
+        resetTime: sessionEnd,
+        rawTotals,
+        messageCount: windowUsage.length,
+        byModel
+      };
     }
 
-    // For 5-hour window, find the actual current session start
-    // For weekly window, use the new weekly calculation
+    // For weekly window, use the existing weekly calculation
     let actualSessionStart;
     let windowUsage;
     
@@ -258,27 +469,19 @@ class RealtimeMonitor {
         return itemTime >= actualSessionStart && itemTime < weekEnd;
       });
     } else {
-      // For 5-hour window, use strict rolling window approach
-      const now = new Date();
-      const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
-      
-      // Get all messages within the last 5 hours
-      windowUsage = allUsage.filter(item => 
-        new Date(item.timestamp) >= fiveHoursAgo
-      );
-      
-      // If we have messages, the session start is 5 hours ago or the first message, whichever is later
-      if (windowUsage.length > 0) {
-        const sortedWindow = [...windowUsage].sort((a, b) => 
-          new Date(a.timestamp) - new Date(b.timestamp)
-        );
-        actualSessionStart = new Date(sortedWindow[0].timestamp);
-        
-        // Log for debugging
-        console.log(`5-hour rolling window: ${windowUsage.length} messages from ${actualSessionStart.toISOString()} to ${now.toISOString()}`);
-      } else {
-        actualSessionStart = fiveHoursAgo;
-      }
+      // This branch should never be reached as we handle 5-hour windows above
+      console.error('Unexpected code path in calculateWindowUsage');
+      return {
+        windowStart: null,
+        sessionStart: null,
+        totalTokens: 0,
+        effectiveTotal: 0,
+        limit: 19000,
+        resetTime: null,
+        rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+        messageCount: 0,
+        byModel: {}
+      };
     }
 
     // Use effectiveTotal for usage limit calculations (input + output only)
