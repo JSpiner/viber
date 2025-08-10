@@ -18,6 +18,51 @@ class RealtimeMonitor {
         new Date(item.timestamp) >= tenMinutesAgo
       );
 
+      // Get last 12 hours of data for 5-hour window chart
+      // If there's recent activity, use 12 hours from now
+      // Otherwise, get the most recent 12 hours of data available
+      let twelveHourData = [];
+      const now = new Date();
+      const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+      
+      // First try to get data from the last 12 hours
+      twelveHourData = allUsage.filter(item => 
+        new Date(item.timestamp) >= twelveHoursAgo
+      );
+      
+      // If no data in last 12 hours, get the most recent 12 hours of activity
+      if (twelveHourData.length === 0 && allUsage.length > 0) {
+        // Sort by timestamp descending
+        const sortedUsage = [...allUsage].sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        
+        // Get the most recent timestamp
+        const mostRecentTime = new Date(sortedUsage[0].timestamp);
+        const twelveHoursBeforeRecent = new Date(mostRecentTime.getTime() - 12 * 60 * 60 * 1000);
+        
+        // Get data from the most recent 12-hour window
+        twelveHourData = allUsage.filter(item => {
+          const itemTime = new Date(item.timestamp);
+          return itemTime >= twelveHoursBeforeRecent && itemTime <= mostRecentTime;
+        });
+        
+        console.log('RealtimeMonitor - Using most recent 12-hour window:', {
+          mostRecentTime: mostRecentTime.toISOString(),
+          twelveHoursBeforeRecent: twelveHoursBeforeRecent.toISOString(),
+          dataCount: twelveHourData.length
+        });
+      }
+      
+      console.log('RealtimeMonitor - twelveHourData:', {
+        allUsageCount: allUsage.length,
+        twelveHourCount: twelveHourData.length,
+        twelveHoursAgo: twelveHoursAgo.toISOString(),
+        now: now.toISOString(),
+        firstItem: twelveHourData[0]?.timestamp,
+        lastItem: twelveHourData[twelveHourData.length - 1]?.timestamp
+      });
+
       // Get current 5-hour session data
       const hourlyWindowData = this.calculateWindowUsage(allUsage, null, false);
 
@@ -49,6 +94,7 @@ class RealtimeMonitor {
 
       return {
         recent: recentUsage,
+        twelveHourData: twelveHourData,
         hourlyWindow: hourlyWindowData,
         weeklyWindow: weeklyWindowData,
         twoWeeksData: twoWeeksData,
@@ -156,9 +202,9 @@ class RealtimeMonitor {
 
   getSubscriptionLimits() {
     return {
-      pro: { fiveHourTokens: 19000, weeklyTokens: 304000 },
-      max5x: { fiveHourTokens: 88000, weeklyTokens: 1408000 },
-      max20x: { fiveHourTokens: 220000, weeklyTokens: 2816000 }
+      pro: { fiveHourTokens: 38000, weeklyTokens: 608000 },
+      max5x: { fiveHourTokens: 176000, weeklyTokens: 2816000 },
+      max20x: { fiveHourTokens: 440000, weeklyTokens: 5632000 }
     };
   }
 
@@ -196,8 +242,8 @@ class RealtimeMonitor {
   }
 
   // New function to find session start with 5-hour limit
-  findSessionStartWithLimit(allUsage, limitHours = 5) {
-    const now = new Date();
+  findSessionStartWithLimit(allUsage, limitHours = 5, referenceTime = null) {
+    const now = referenceTime || new Date();
     
     if (allUsage.length === 0) {
       return null;
@@ -211,40 +257,31 @@ class RealtimeMonitor {
     // Get the most recent message
     const mostRecent = new Date(sortedUsage[0].timestamp);
     
-    // If the most recent message is older than limit hours, no active session
+    // If the most recent message is older than limit hours from reference time, no active session
     const hoursSinceLastActivity = (now - mostRecent) / (1000 * 60 * 60);
     if (hoursSinceLastActivity >= limitHours) {
       return null;
     }
     
-    // Work backwards to find session start, but not beyond limit hours
+    // Find the session start by looking for gaps, working backwards from most recent
     let sessionStart = mostRecent;
-    const limitTime = new Date(now.getTime() - limitHours * 60 * 60 * 1000);
     
+    // Work backwards through messages to find session boundaries
     for (let i = 0; i < sortedUsage.length - 1; i++) {
       const currentTime = new Date(sortedUsage[i].timestamp);
-      const nextTime = new Date(sortedUsage[i + 1].timestamp);
+      const previousTime = new Date(sortedUsage[i + 1].timestamp);
       
-      // Check if we've hit the time limit
-      if (nextTime < limitTime) {
-        break;
-      }
-      
-      // Check for gap between messages
-      const gapInHours = (currentTime - nextTime) / (1000 * 60 * 60);
+      // Check for gap between messages (current is newer, previous is older)
+      const gapInHours = (currentTime - previousTime) / (1000 * 60 * 60);
       
       if (gapInHours >= limitHours) {
-        // Found a gap, session starts at current message
+        // Found a gap! Current session starts at the current message
+        sessionStart = currentTime;
         break;
       }
       
-      // This message is part of the same session
-      sessionStart = nextTime;
-    }
-    
-    // Ensure session start is not older than limit
-    if (sessionStart < limitTime) {
-      sessionStart = limitTime;
+      // Update session start to the oldest message we've seen without a gap
+      sessionStart = previousTime;
     }
     
     console.log(`Session start with ${limitHours}h limit:`, sessionStart.toISOString());
@@ -259,7 +296,7 @@ class RealtimeMonitor {
         sessionStart: null,
         totalTokens: 0,
         effectiveTotal: 0,
-        limit: isWeekly ? 304000 : 19000, // Default pro limits
+        limit: isWeekly ? 608000 : 38000, // Default pro limits
         resetTime: null,
         rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
         messageCount: 0,
@@ -279,7 +316,7 @@ class RealtimeMonitor {
           sessionStart: null,
           totalTokens: 0,
           effectiveTotal: 0,
-          limit: 19000, // Default pro limits
+          limit: 38000, // Default pro limits
           resetTime: null,
           rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
           messageCount: 0,
@@ -294,25 +331,30 @@ class RealtimeMonitor {
       // Check if session has expired
       if (now >= sessionEnd) {
         // Session expired, check for new session
-        const newSessionMessages = allUsage.filter(item => 
+        const messagesAfterExpiry = allUsage.filter(item => 
           new Date(item.timestamp) >= sessionEnd
         );
         
-        if (newSessionMessages.length > 0) {
-          // Start a new session from the first message after expiry
-          const newSessionStart = this.findSessionStartWithLimit(
-            newSessionMessages, 
-            5
+        if (messagesAfterExpiry.length > 0) {
+          // Sort messages after expiry by timestamp (oldest first)
+          const sortedMessages = [...messagesAfterExpiry].sort((a, b) => 
+            new Date(a.timestamp) - new Date(b.timestamp)
           );
           
-          if (!newSessionStart) {
-            console.log('No active session after expiry');
+          // Check if the MOST RECENT message is within 5 hours of now
+          const mostRecentMessage = sortedMessages[sortedMessages.length - 1];
+          const mostRecentTime = new Date(mostRecentMessage.timestamp);
+          const hoursSinceMostRecent = (now - mostRecentTime) / (1000 * 60 * 60);
+          
+          // If the most recent message is more than 5 hours ago, no active session
+          if (hoursSinceMostRecent >= 5) {
+            console.log('Session expired, no recent activity within 5 hours');
             return {
               windowStart: null,
               sessionStart: null,
               totalTokens: 0,
               effectiveTotal: 0,
-              limit: 19000,
+              limit: 38000,
               resetTime: null,
               rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
               messageCount: 0,
@@ -320,8 +362,59 @@ class RealtimeMonitor {
             };
           }
           
-          // Use the new session
-          const actualSessionStart = newSessionStart;
+          // Find the actual session start by working backwards from most recent
+          // Start with the oldest message after expiry
+          let actualSessionStart = new Date(sortedMessages[0].timestamp);
+          
+          // Work backwards from most recent to find the last 5-hour gap
+          for (let i = sortedMessages.length - 1; i > 0; i--) {
+            const currTime = new Date(sortedMessages[i].timestamp);
+            const prevTime = new Date(sortedMessages[i - 1].timestamp);
+            const gapHours = (currTime - prevTime) / (1000 * 60 * 60);
+            
+            if (gapHours >= 5) {
+              // Found a gap, current session starts at current message
+              actualSessionStart = currTime;
+              break;
+            }
+          }
+          
+          // If the found session start is more than 5 hours ago, use rolling window
+          const hoursSinceSessionStart = (now - actualSessionStart) / (1000 * 60 * 60);
+          if (hoursSinceSessionStart > 5) {
+            // No gap found within 5 hours, use rolling window (current time - 5 hours)
+            const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+            
+            // Find the first message after 5 hours ago
+            let rollingSessionStart = null;
+            for (const msg of sortedMessages) {
+              const msgTime = new Date(msg.timestamp);
+              if (msgTime >= fiveHoursAgo) {
+                rollingSessionStart = msgTime;
+                break;
+              }
+            }
+            
+            if (!rollingSessionStart) {
+              // This shouldn't happen since we checked mostRecentTime, but handle gracefully
+              console.log('No messages within 5-hour window');
+              return {
+                windowStart: null,
+                sessionStart: null,
+                totalTokens: 0,
+                effectiveTotal: 0,
+                limit: 38000,
+                resetTime: null,
+                rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
+                messageCount: 0,
+                byModel: {}
+              };
+            }
+            
+            actualSessionStart = rollingSessionStart;
+            console.log(`Using rolling window: session start at ${actualSessionStart.toISOString()}`);
+          }
+          
           const actualSessionEnd = new Date(actualSessionStart.getTime() + 5 * 60 * 60 * 1000);
           
           // Get messages within the new session
@@ -381,7 +474,7 @@ class RealtimeMonitor {
             sessionStart: null,
             totalTokens: 0,
             effectiveTotal: 0,
-            limit: 19000,
+            limit: 38000,
             resetTime: null,
             rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
             messageCount: 0,
@@ -455,7 +548,7 @@ class RealtimeMonitor {
           sessionStart: null,
           totalTokens: 0,
           effectiveTotal: 0,
-          limit: 304000, // Default pro limits
+          limit: 608000, // Default pro limits
           resetTime: null,
           rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
           messageCount: 0,
@@ -521,9 +614,9 @@ class RealtimeMonitor {
 
     // Get subscription limits (defaulting to Pro tier)
     const limits = {
-      pro: { fiveHourTokens: 19000, weeklyTokens: 304000 },
-      max5x: { fiveHourTokens: 88000, weeklyTokens: 1408000 },
-      max20x: { fiveHourTokens: 220000, weeklyTokens: 2816000 }
+      pro: { fiveHourTokens: 38000, weeklyTokens: 608000 },
+      max5x: { fiveHourTokens: 176000, weeklyTokens: 2816000 },
+      max20x: { fiveHourTokens: 440000, weeklyTokens: 5632000 }
     };
     
     const tierLimits = limits.pro; // Default to pro tier

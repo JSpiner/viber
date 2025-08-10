@@ -131,6 +131,7 @@ class NowManager {
       
       if (result.success) {
         this.recentUsageData = result.data.recent;
+        this.twelveHourData = result.data.twelveHourData || [];
         this.hourlyWindowData = result.data.hourlyWindow;
         this.weeklyWindowData = result.data.weeklyWindow;
         this.twoWeeksData = result.data.twoWeeksData || [];
@@ -138,11 +139,17 @@ class NowManager {
         
         console.log('Data loaded successfully:', {
           recent: this.recentUsageData.length,
+          twelveHour: this.twelveHourData.length,
           hourlyWindow: this.hourlyWindowData,
           weeklyWindow: this.weeklyWindowData,
           twoWeeksData: this.twoWeeksData?.length,
           weeklyWindows: this.weeklyWindows?.length
         });
+        
+        // Log sample of twelveHourData
+        if (this.twelveHourData.length > 0) {
+          console.log('Sample twelveHourData:', this.twelveHourData.slice(0, 3));
+        }
         
         this.updateDisplay();
         this.startAutoUpdate();
@@ -465,21 +472,21 @@ class NowManager {
   }
 
   getSubscriptionLimits() {
-    // Token limits based on official Anthropic documentation
+    // Token limits based on official Anthropic documentation (2x increased)
     const limits = {
       pro: {
-        fiveHourTokens: 19000,     // 19k tokens per 5 hours
-        weeklyTokens: 304000,      // 304k tokens per week  
+        fiveHourTokens: 38000,     // 38k tokens per 5 hours
+        weeklyTokens: 608000,      // 608k tokens per week  
         messages: 45
       },
       max5x: {
-        fiveHourTokens: 88000,     // 88k tokens per 5 hours
-        weeklyTokens: 1408000,     // 1.408M tokens per week
+        fiveHourTokens: 176000,    // 176k tokens per 5 hours
+        weeklyTokens: 2816000,     // 2.816M tokens per week
         messages: 225
       },
       max20x: {
-        fiveHourTokens: 220000,    // 220k tokens per 5 hours
-        weeklyTokens: 2816000,     // 2.816M tokens per week
+        fiveHourTokens: 440000,    // 440k tokens per 5 hours
+        weeklyTokens: 5632000,     // 5.632M tokens per week
         messages: 900
       }
     };
@@ -499,48 +506,496 @@ class NowManager {
       this.fiveHourChart.destroy();
     }
 
+    // Prepare timeline data for last 12 hours
+    const chartData = this.prepareFiveHourData();
     const limits = this.getSubscriptionLimits();
-    const used = this.hourlyWindowData?.totalTokens || 0;
-    const remaining = Math.max(0, limits.fiveHourTokens - used);
+    
+    // Prepare session windows data (current and previous)
+    const sessionWindows = this.prepareFiveHourSessions();
+
+    // Store session data for tooltip access
+    const sessionData = sessionWindows;
+    
+    // Create custom plugin to draw session window bars
+    const sessionWindowsPlugin = {
+      id: 'sessionWindows',
+      afterDatasetsDraw: (chart) => {
+        const ctx = chart.ctx;
+        const chartArea = chart.chartArea;
+        const xScale = chart.scales.x;
+        
+        if (!sessionWindows || sessionWindows.length === 0) return;
+        
+        ctx.save();
+        
+        // Store session rectangles for hover detection
+        chart.sessionRects = [];
+        
+        // Draw each session window
+        sessionWindows.forEach((session, index) => {
+          if (!session) return;
+          
+          const startDate = new Date(session.start);
+          const endDate = new Date(session.end);
+          
+          // Find indices for start and end times
+          const startIdx = chartData.timestamps.findIndex(ts => {
+            const tsDate = new Date(ts);
+            return tsDate >= startDate;
+          });
+          
+          const endIdx = chartData.timestamps.findIndex(ts => {
+            const tsDate = new Date(ts);
+            return tsDate >= endDate;
+          });
+          
+          if (startIdx === -1) return;
+          
+          const actualEndIdx = endIdx === -1 ? chartData.timestamps.length - 1 : endIdx;
+          const startX = xScale.getPixelForValue(startIdx);
+          const endX = xScale.getPixelForValue(actualEndIdx);
+          
+          // Position bars at the bottom
+          const barHeight = 20;
+          const barY = chartArea.bottom - (index + 1) * (barHeight + 5);
+          
+          // Style based on session type
+          if (session.isCurrent) {
+            ctx.fillStyle = 'rgba(255, 107, 107, 0.2)';
+            ctx.strokeStyle = 'rgba(255, 107, 107, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+          } else {
+            // Previous session
+            ctx.fillStyle = 'rgba(255, 165, 0, 0.15)';
+            ctx.strokeStyle = 'rgba(255, 165, 0, 0.7)';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([8, 4]);
+          }
+          
+          // Draw the bar
+          ctx.fillRect(startX, barY, endX - startX, barHeight);
+          ctx.strokeRect(startX, barY, endX - startX, barHeight);
+          
+          // Store rectangle for hover detection
+          chart.sessionRects.push({
+            x: startX,
+            y: barY,
+            width: endX - startX,
+            height: barHeight,
+            session: session
+          });
+          
+          // Add text label
+          ctx.font = session.isCurrent ? 'bold 11px sans-serif' : '11px sans-serif';
+          ctx.fillStyle = session.isCurrent ? '#ff6b6b' : '#ffa500';
+          
+          const usagePercent = ((session.totalTokens / limits.fiveHourTokens) * 100).toFixed(1);
+          let label;
+          
+          if (session.isCurrent) {
+            // Current session: "current (XX%) - Xh Xm left"
+            const timeInfo = session.timeRemaining ? ` - ${session.timeRemaining}` : '';
+            label = `current (${usagePercent}%)${timeInfo}`;
+          } else {
+            // Previous session: "prev (XX%)"
+            label = `prev (${usagePercent}%)`;
+          }
+          
+          ctx.fillText(label, startX + 5, barY + 14);
+        });
+        
+        ctx.restore();
+      }
+    };
+
+    // Create labels with only hourly marks (every other label since we have 30-min intervals)
+    const displayLabels = chartData.labels.map((label, index) => {
+      // Show label only for even indices (every hour since intervals are 30 min)
+      // The labels at even indices should be on the hour (00 minutes)
+      if (index % 2 === 0) {
+        return label;
+      }
+      return null;  // null to completely hide 30-min marks
+    });
 
     this.fiveHourChart = new Chart(ctx, {
-      type: 'doughnut',
+      type: 'line',
       data: {
-        labels: ['Used', 'Remaining'],
+        labels: displayLabels,  // Use the modified labels
         datasets: [{
-          data: [used, remaining],
-          backgroundColor: [
-            used / limits.fiveHourTokens > 0.9 ? '#ff6b6b' : 
-            used / limits.fiveHourTokens > 0.7 ? '#ffa500' : '#0e639c',
-            '#3a3a3c'
-          ],
-          borderWidth: 0
+          label: 'Token Usage',
+          data: chartData.values,
+          borderColor: '#0e639c',
+          backgroundColor: 'rgba(14, 99, 156, 0.1)',
+          borderWidth: 2,
+          tension: 0.4,
+          fill: true,
+          spanGaps: true,  // Connect points even if there are gaps in data
+          pointRadius: 3,  // Show all points
+          pointBackgroundColor: '#0e639c',
+          pointBorderColor: '#0e639c',
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#0e639c',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: '#cccccc',
-              padding: 10
+        scales: {
+          x: {
+            grid: {
+              color: '#3a3a3c'
+            },
+            ticks: {
+              color: '#969696',
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: false,  // Don't auto-skip, we've already filtered
+              // Filter out null labels
+              callback: function(value, index, ticks) {
+                const label = this.getLabelForValue(value);
+                return label !== null ? label : undefined;
+              }
             }
           },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const label = context.label || '';
-                const value = context.parsed || 0;
-                const percentage = ((value / limits.fiveHourTokens) * 100).toFixed(1);
-                return `${label}: ${value.toLocaleString()} tokens (${percentage}%)`;
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: '#3a3a3c'
+            },
+            ticks: {
+              color: '#969696',
+              callback: function(value) {
+                return value.toLocaleString();
               }
             }
           }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            enabled: false  // Disable all tooltips for line graph
+          }
+        }
+      },
+      plugins: [sessionWindowsPlugin]
+    });
+    
+    // Add mouse move event handler for custom tooltip
+    ctx.canvas.addEventListener('mousemove', (e) => {
+      const rect = ctx.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      if (!this.fiveHourChart.sessionRects) return;
+      
+      let tooltipEl = document.getElementById('chartjs-session-tooltip');
+      
+      // Create tooltip element if it doesn't exist
+      if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'chartjs-session-tooltip';
+        tooltipEl.style.background = 'rgba(0, 0, 0, 0.9)';
+        tooltipEl.style.border = '1px solid #444';
+        tooltipEl.style.borderRadius = '4px';
+        tooltipEl.style.color = '#fff';
+        tooltipEl.style.opacity = '0';
+        tooltipEl.style.pointerEvents = 'none';
+        tooltipEl.style.position = 'absolute';
+        tooltipEl.style.padding = '10px';
+        tooltipEl.style.fontSize = '12px';
+        tooltipEl.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        tooltipEl.style.zIndex = '10000';
+        tooltipEl.style.transition = 'opacity 0.2s ease';
+        tooltipEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+        document.body.appendChild(tooltipEl);
+      }
+      
+      // Check if hovering over a session bar
+      let hoveredSession = null;
+      for (const rectData of this.fiveHourChart.sessionRects) {
+        if (x >= rectData.x && x <= rectData.x + rectData.width &&
+            y >= rectData.y && y <= rectData.y + rectData.height) {
+          hoveredSession = rectData.session;
+          break;
         }
       }
+      
+      if (hoveredSession) {
+        // Format times for display
+        const startTime = new Date(hoveredSession.start);
+        const endTime = new Date(hoveredSession.end);
+        const now = new Date();
+        
+        // For current session, use current time if session hasn't ended yet
+        const effectiveEndTime = hoveredSession.isCurrent && endTime > now ? now : endTime;
+        const duration = (effectiveEndTime - startTime) / (1000 * 60 * 60); // in hours
+        
+        const formatTime = (date) => {
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+          return `${hours}:${minutes}:${seconds}`;
+        };
+        
+        const formatDuration = (hours) => {
+          const h = Math.floor(hours);
+          const m = Math.round((hours - h) * 60);
+          if (h > 0 && m > 0) {
+            return `${h}h ${m}m`;
+          } else if (h > 0) {
+            return `${h}h`;
+          } else {
+            return `${m}m`;
+          }
+        };
+        
+        // Build tooltip content
+        const sessionType = hoveredSession.isCurrent ? 
+          '<span style="color: #ff6b6b;">Current Session</span>' : 
+          '<span style="color: #ffa500;">Previous Session</span>';
+        
+        tooltipEl.innerHTML = `
+          <div style="font-weight: bold; margin-bottom: 6px; font-size: 13px;">${sessionType}</div>
+          <div style="margin-bottom: 3px;"><span style="color: #999;">Start:</span> ${formatTime(startTime)}</div>
+          <div style="margin-bottom: 3px;"><span style="color: #999;">End:</span> ${formatTime(endTime)}</div>
+          <div style="margin-bottom: 3px;"><span style="color: #999;">Duration:</span> ${formatDuration(duration)}</div>
+          <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #444;">
+            <span style="color: #999;">Tokens Used:</span> <strong>${hoveredSession.totalTokens.toLocaleString()}</strong>
+          </div>
+        `;
+        
+        // Position tooltip
+        tooltipEl.style.opacity = '1';
+        tooltipEl.style.left = (rect.left + x + 10) + 'px';
+        tooltipEl.style.top = (rect.top + y - 80) + 'px';
+      } else {
+        // Hide tooltip when not hovering over session bar
+        tooltipEl.style.opacity = '0';
+      }
     });
+    
+    // Hide tooltip when mouse leaves canvas
+    ctx.canvas.addEventListener('mouseleave', () => {
+      const tooltipEl = document.getElementById('chartjs-session-tooltip');
+      if (tooltipEl) {
+        tooltipEl.style.opacity = '0';
+      }
+    });
+  }
+
+  prepareFiveHourData() {
+    // Prepare data for the 12-hour timeline
+    const labels = [];
+    const values = [];
+    const timestamps = [];
+    const now = new Date();
+    
+    // Use the 12-hour data from backend
+    const allData = this.twelveHourData || [];
+    
+    console.log('prepareFiveHourData - using twelveHourData:', allData.length, 'items');
+    
+    // Determine the actual time range of the data
+    let startTime, endTime;
+    
+    if (allData.length > 0) {
+      // Find the actual time range of the data
+      const times = allData.map(item => new Date(item.timestamp).getTime());
+      const minTime = Math.min(...times);
+      const maxTime = Math.max(...times);
+      
+      // Use the actual data range, extended to 12 hours if less
+      startTime = new Date(minTime);
+      endTime = new Date(maxTime);
+      
+      // Ensure we show at least 12 hours
+      const rangeMs = endTime - startTime;
+      const twelveHoursMs = 12 * 60 * 60 * 1000;
+      
+      if (rangeMs < twelveHoursMs) {
+        // Center the data in a 12-hour window
+        const padding = (twelveHoursMs - rangeMs) / 2;
+        startTime = new Date(startTime.getTime() - padding);
+        endTime = new Date(endTime.getTime() + padding);
+      }
+    } else {
+      // No data, show the last 12 hours from now
+      endTime = now;
+      startTime = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    }
+    
+    // Round start time down to the nearest hour
+    startTime = new Date(startTime);
+    startTime.setMinutes(0, 0, 0);
+    
+    // Adjust end time to be exactly 12 hours from start
+    endTime = new Date(startTime.getTime() + 12 * 60 * 60 * 1000);
+    
+    console.log('prepareFiveHourData - time range:', {
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      dataPoints: allData.length
+    });
+    
+    // Create 30-minute intervals
+    const intervals = 24; // 12 hours / 30 minutes = 24 intervals
+    const intervalMs = 30 * 60 * 1000; // 30 minutes in ms
+    
+    // Generate intervals based on the actual time range
+    for (let i = 0; i < intervals; i++) {
+      const intervalStart = new Date(startTime.getTime() + i * intervalMs);
+      const intervalEnd = new Date(intervalStart.getTime() + intervalMs);
+      
+      // Count ALL tokens in this interval
+      const intervalTokens = allData
+        .filter(item => {
+          const itemTime = new Date(item.timestamp);
+          return itemTime >= intervalStart && itemTime < intervalEnd;
+        })
+        .reduce((sum, item) => sum + (item.usage.effectiveTotal || 0), 0);
+      
+      // Format time label - for hourly intervals, show simpler format
+      let timeLabel;
+      if (intervalStart.getMinutes() === 0) {
+        // On the hour - show in format like "9:00 AM", "12:00 PM"
+        timeLabel = intervalStart.toLocaleTimeString('en-US', { 
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        // 30-minute mark - still include for data but will be hidden
+        timeLabel = intervalStart.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      }
+      
+      labels.push(timeLabel);
+      values.push(intervalTokens);
+      timestamps.push(intervalStart.toISOString());
+      
+      if (intervalTokens > 0) {
+        console.log(`Interval ${i} (${timeLabel}): ${intervalTokens} tokens`);
+      }
+    }
+    
+    console.log('prepareFiveHourData - chart data:', { 
+      intervalsWithData: values.filter(v => v > 0).length,
+      totalTokens: values.reduce((sum, v) => sum + v, 0),
+      maxTokensInInterval: Math.max(...values)
+    });
+    
+    return { labels, values, timestamps };
+  }
+
+  prepareFiveHourSessions() {
+    // Prepare current and previous 5-hour session windows
+    const sessions = [];
+    const now = new Date();
+    const limits = this.getSubscriptionLimits();
+    
+    // Current session
+    if (this.hourlyWindowData?.windowStart) {
+      const sessionStart = new Date(this.hourlyWindowData.windowStart);
+      const sessionEnd = new Date(sessionStart.getTime() + 5 * 60 * 60 * 1000);
+      const timeRemaining = Math.max(0, sessionEnd - now);
+      const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
+      const minutesRemaining = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      
+      sessions.push({
+        start: sessionStart.toISOString(),
+        end: sessionEnd.toISOString(),
+        totalTokens: this.hourlyWindowData.totalTokens || 0,
+        isCurrent: true,
+        timeRemaining: hoursRemaining > 0 ? `${hoursRemaining}h ${minutesRemaining}m left` : `${minutesRemaining}m left`
+      });
+    }
+    
+    // Find previous session (look for 5+ hour gap before current session)
+    // Use twelveHourData which has more complete data
+    if (this.twelveHourData && this.twelveHourData.length > 0) {
+      const sortedData = [...this.twelveHourData].sort((a, b) => 
+        new Date(a.timestamp) - new Date(b.timestamp)
+      );
+      
+      // If there's a current session, look for sessions before it
+      const currentSessionStart = this.hourlyWindowData?.windowStart ? 
+        new Date(this.hourlyWindowData.windowStart) : now;
+      
+      // Find messages before current session
+      const beforeCurrent = sortedData.filter(item => 
+        new Date(item.timestamp) < currentSessionStart
+      );
+      
+      if (beforeCurrent.length > 0) {
+        // Look for the most recent session before current
+        // Work backwards to find session boundaries
+        let prevSessionEnd = null;
+        let prevSessionStart = null;
+        
+        for (let i = beforeCurrent.length - 1; i > 0; i--) {
+          const current = new Date(beforeCurrent[i].timestamp);
+          const previous = new Date(beforeCurrent[i - 1].timestamp);
+          const gapHours = (current - previous) / (1000 * 60 * 60);
+          
+          if (gapHours >= 5) {
+            // Found a session boundary
+            prevSessionEnd = current;
+            prevSessionStart = current;
+            
+            // Find the actual start of this session
+            for (let j = i; j < beforeCurrent.length; j++) {
+              const msgTime = new Date(beforeCurrent[j].timestamp);
+              if (j === beforeCurrent.length - 1 || 
+                  (new Date(beforeCurrent[j + 1].timestamp) - msgTime) / (1000 * 60 * 60) >= 5) {
+                prevSessionEnd = msgTime;
+                break;
+              }
+            }
+            break;
+          }
+        }
+        
+        // If no gap found, the entire range before current is one session
+        if (!prevSessionStart) {
+          prevSessionStart = new Date(beforeCurrent[0].timestamp);
+          prevSessionEnd = new Date(beforeCurrent[beforeCurrent.length - 1].timestamp);
+        }
+        
+        // Calculate tokens for previous session
+        const sessionData = sortedData.filter(item => {
+          const itemTime = new Date(item.timestamp);
+          return itemTime >= prevSessionStart && 
+                 itemTime < new Date(Math.min(prevSessionEnd.getTime() + 5 * 60 * 60 * 1000, 
+                                              currentSessionStart.getTime()));
+        });
+        
+        const prevTokens = sessionData.reduce((sum, item) => 
+          sum + (item.usage.effectiveTotal || 0), 0
+        );
+        
+        if (prevTokens > 0) {
+          sessions.push({
+            start: prevSessionStart.toISOString(),
+            end: new Date(Math.min(
+              prevSessionStart.getTime() + 5 * 60 * 60 * 1000,
+              prevSessionEnd.getTime()
+            )).toISOString(),
+            totalTokens: prevTokens,
+            isCurrent: false
+          });
+        }
+      }
+    }
+    
+    return sessions;
   }
 
   renderWeeklyChart() {
@@ -556,7 +1011,7 @@ class NowManager {
     // Create custom plugin to draw weekly window bars
     const weeklyWindowsPlugin = {
       id: 'weeklyWindows',
-      beforeDraw: (chart) => {
+      afterDatasetsDraw: (chart) => {
         const ctx = chart.ctx;
         const chartArea = chart.chartArea;
         const xScale = chart.scales.x;

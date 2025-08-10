@@ -781,6 +781,8 @@ body {
   padding: 24px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
+  overflow: hidden;  /* Prevent content overflow */
+  min-width: 0;  /* Allow card to shrink */
 }
 
 .usage-card h3 {
@@ -837,14 +839,16 @@ body {
 .window-content {
   display: grid;
   gap: 20px;
+  overflow: hidden;  /* Prevent content overflow */
 }
 
 .five-hour-window .window-content {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 1fr;  /* 1:1 ratio for text and chart */
   grid-template-rows: auto auto;
   gap: 20px;
   align-items: start;
+  overflow: hidden;
 }
 
 .five-hour-window .usage-stats {
@@ -860,19 +864,24 @@ body {
 .five-hour-window .chart-container {
   grid-column: 2;
   grid-row: 1;
-  width: 300px;
+  width: 100%;  /* Take full width of its column */
+  min-width: 0;  /* Allow shrinking */
+  max-width: 100%;  /* Prevent overflow */
 }
 
 .usage-stats {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;  /* Allow text to wrap */
 }
 
 .stat-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;  /* Add gap for spacing */
+  min-width: 0;  /* Allow wrapping */
 }
 
 .stat-label {
@@ -884,6 +893,8 @@ body {
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 500;
+  word-break: break-word;  /* Allow long numbers to break */
+  text-align: right;
 }
 
 /* Session start time styling */
@@ -1003,14 +1014,18 @@ body {
 /* Chart Containers */
 .chart-container {
   position: relative;
+  width: 100%;
+  overflow: hidden;  /* Prevent canvas overflow */
 }
 
 .chart-container.small {
-  height: 200px;
+  height: 250px;  /* Increased height for better visibility */
+  width: 100%;
 }
 
 .chart-container.medium {
   height: 250px;
+  width: 100%;
 }
 
 /* Grid Layout for Larger Screens */
@@ -1030,6 +1045,34 @@ body {
   .weekly-window {
     grid-column: 1 / -1;
   }
+}
+
+/* Weekly window specific styles */
+.weekly-window .window-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;  /* 1:1 ratio for text and chart */
+  grid-template-rows: auto auto;
+  gap: 20px;
+  align-items: start;
+  overflow: hidden;
+}
+
+.weekly-window .usage-stats {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.weekly-window .progress-container {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.weekly-window .chart-container {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;  /* Take full width of its column */
+  min-width: 0;  /* Allow shrinking */
+  max-width: 100%;  /* Prevent overflow */
 }
 
 /* Update Indicator Styles */
