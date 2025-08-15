@@ -1,5 +1,5 @@
 {
-  "appId": "com.viber.app",
+  "appId": "io.jspiner.viber",
   "productName": "Viber",
   "directories": {
     "output": "dist"
@@ -25,14 +25,16 @@
     {
       "from": "agents-gallery",
       "to": "agents-gallery",
-      "filter": ["**/*.md"]
+      "filter": [
+        "**/*.md"
+      ]
     }
   ],
   "mac": {
     "icon": "resources/icon.png",
     "category": "public.app-category.developer-tools",
-    "hardenedRuntime": false,
-    "gatekeeperAssess": false,
+    "hardenedRuntime": true,
+    "gatekeeperAssess": true,
     "darkModeSupport": true,
     "entitlements": "entitlements.mac.plist",
     "entitlementsInherit": "entitlements.mac.plist",
@@ -45,5 +47,6 @@
   "npmRebuild": false,
   "nodeGypRebuild": false,
   "removePackageScripts": true,
-  "afterPack": "./after-pack-safe.js"
+  "afterPack": "./after-pack-safe.js",
+  "afterSign": "build/notarize.js"
 }

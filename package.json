@@ -21,6 +21,7 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@electron/notarize": "^3.0.2",
     "@jest/globals": "^30.0.5",
     "electron": "^37.2.4",
     "electron-builder": "^26.0.12",
