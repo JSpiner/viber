@@ -7,7 +7,7 @@
 A macOS desktop application for analyzing and monitoring Claude conversation data with real-time token usage tracking.
 
 ```
-`brew install --cask jspiner/viber/viber`
+brew install --cask jspiner/viber/viber
 ```
 
 [Viber Install Guide](#Installation)
