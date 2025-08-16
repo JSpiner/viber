@@ -8,5 +8,13 @@
     <true/>
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
+    
+    <!-- 홈 디렉토리의 .claude 폴더 읽기 권한 -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+    
+    <!-- 자식 프로세스가 부모의 샌드박스 권한을 상속 -->
+    <key>com.apple.security.inherit</key>
+    <true/>
 </dict>
 </plist>

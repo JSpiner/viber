@@ -365,9 +365,11 @@ class HooksManager {
     }
 
     try {
-      const result = await window.electronAPI.testHook(hookId, params);
-      if (result.success) {
-        this.showSuccess('Test completed successfully');
+      // Generate the command to show to user
+      const result = await window.electronAPI.generateHookCommand(hookId, params);
+      if (result.success && result.data) {
+        // Show terminal command dialog instead of executing
+        this.showTerminalCommandDialog(result.data, hookId);
         
         // Show permission reminder for macOS notifications
         if (hookId === 'mac-os-claude-done-notification' || hookId === 'osascript-notification') {
@@ -376,7 +378,7 @@ class HooksManager {
           }, 500);
         }
       } else {
-        this.showError('Test failed: ' + (result.error || 'Unknown error'));
+        this.showError('Failed to generate test command');
       }
     } catch (error) {
       this.showError('Test failed: ' + error.message);
@@ -402,29 +404,22 @@ class HooksManager {
   async testHook(eventType, index) {
     try {
       const hook = this.installedHooks[eventType][index];
-      const result = await window.electronAPI.testHookCommand(hook.command);
       
-      if (result.success) {
-        this.showSuccess('Hook test completed successfully');
-        if (result.data.output) {
-          console.log('Hook output:', result.data.output);
-        }
-        
-        // Check if this is a macOS notification hook
-        const isMacOSNotification = hook.command && (
-          hook.command.includes('terminal-notifier') || 
-          hook.command.includes('osascript') && hook.command.includes('display notification')
-        );
-        
-        if (isMacOSNotification) {
-          setTimeout(() => {
-            const hookType = hook.command.includes('terminal-notifier') ? 
-              'mac-os-claude-done-notification' : 'osascript-notification';
-            this.showPermissionReminder(hookType);
-          }, 500);
-        }
-      } else {
-        this.showError('Hook test failed: ' + (result.error || 'Unknown error'));
+      // Show terminal command dialog instead of executing
+      this.showTerminalCommandDialog(hook.command);
+      
+      // Check if this is a macOS notification hook
+      const isMacOSNotification = hook.command && (
+        hook.command.includes('terminal-notifier') || 
+        hook.command.includes('osascript') && hook.command.includes('display notification')
+      );
+      
+      if (isMacOSNotification) {
+        setTimeout(() => {
+          const hookType = hook.command.includes('terminal-notifier') ? 
+            'mac-os-claude-done-notification' : 'osascript-notification';
+          this.showPermissionReminder(hookType);
+        }, 500);
       }
     } catch (error) {
       this.showError('Failed to test hook: ' + error.message);
@@ -525,8 +520,75 @@ class HooksManager {
     return div.innerHTML;
   }
 
+  showTerminalCommandDialog(command, hookId) {
+    // Create modal overlay
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Run this script in your terminal</h3>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom: 15px; color: #b0b0b0;">
+            Copy and run the command below in your terminal to test how the hook works.
+          </p>
+          <div style="position: relative; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; padding: 12px; margin: 10px 0;">
+            <pre id="terminalCommand" style="margin: 0; color: #4ec9b0; font-family: 'SF Mono', Monaco, monospace; font-size: 13px; white-space: pre-wrap; word-break: break-all;">${this.escapeHtml(command)}</pre>
+            <button onclick="hooksManager.copyTerminalCommand()" 
+                    style="position: absolute; top: 8px; right: 8px; padding: 4px 8px; 
+                           background: #333; border: 1px solid #555; border-radius: 3px; 
+                           color: #b0b0b0; font-size: 11px; cursor: pointer; 
+                           transition: all 0.2s;"
+                    onmouseover="this.style.background='#444'; this.style.borderColor='#666';"
+                    onmouseout="this.style.background='#333'; this.style.borderColor='#555';">
+              Copy
+            </button>
+          </div>
+          <div style="margin-top: 15px; padding: 10px; background: #2a2a1a; border: 1px solid #444400; border-radius: 4px;">
+            <p style="margin: 0; color: #ffcc00; font-size: 13px;">
+              <strong>💡 Tip:</strong> If notifications don't appear after running in terminal, 
+              check permissions in System Settings > Notifications.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-primary" onclick="hooksManager.closeModal()">OK</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    
+    // Store command for copy function
+    this.currentTestCommand = command;
+  }
+
+  copyTerminalCommand() {
+    const commandElement = document.getElementById('terminalCommand');
+    if (commandElement && this.currentTestCommand) {
+      navigator.clipboard.writeText(this.currentTestCommand).then(() => {
+        // Change button text temporarily
+        const copyBtn = event.target;
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        copyBtn.style.background = '#2a4a2a';
+        copyBtn.style.borderColor = '#4a6a4a';
+        
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+          copyBtn.style.background = '#333';
+          copyBtn.style.borderColor = '#555';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+        this.showError('Failed to copy to clipboard');
+      });
+    }
+  }
+
   showPermissionReminder(hookId) {
-    const appName = hookId === 'mac-os-claude-done-notification' ? 'terminal-notifier' : 'Viber';
+    const appName = hookId === 'mac-os-claude-done-notification' ? 'terminal-notifier' : 'Terminal';
     const message = `Not seeing notifications? Please allow ${appName} in System Settings > Notifications > Application Notifications.`;
     
     // Create a temporary notification element

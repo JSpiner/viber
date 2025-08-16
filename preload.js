@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkHookPrerequisites: (hookId) => ipcRenderer.invoke('check-hook-prerequisites', hookId),
   installHook: (hookId, params) => ipcRenderer.invoke('install-hook', hookId, params),
   removeHook: (hookEvent, index) => ipcRenderer.invoke('remove-hook', hookEvent, index),
+  generateHookCommand: (hookId, params) => ipcRenderer.invoke('generate-hook-command', hookId, params),
   testHook: (hookId, params) => ipcRenderer.invoke('test-hook', hookId, params),
   testHookCommand: (command) => ipcRenderer.invoke('test-hook-command', command),
   addHookCommand: (hookEvent, command) => ipcRenderer.invoke('add-hook-command', hookEvent, command),

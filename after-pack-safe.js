@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 exports.default = async function(context) {
-  console.log('🧹 Running safe after-pack cleanup...');
+  console.log('🧹 Running safe after-pack cleanup and hardened runtime fix...');
   
   const appPath = path.join(
     context.appOutDir,
@@ -127,4 +128,78 @@ exports.default = async function(context) {
   
   const savedMB = (totalSaved / 1024 / 1024).toFixed(2);
   console.log(`✅ Safe after-pack cleanup complete. Saved ${savedMB} MB`);
+  
+  // Apply hardened runtime to all executables
+  console.log('🔐 Applying hardened runtime to all executables...');
+  
+  const appBundlePath = path.join(
+    context.appOutDir,
+    `${context.packager.appInfo.productName}.app`
+  );
+  
+  const cscName = process.env.CSC_NAME;
+  const entitlementsPath = 'build/entitlements.mac.plist';
+  
+  if (!cscName) {
+    console.log('⚠️ CSC_NAME not found, skipping hardened runtime fix');
+    return;
+  }
+  
+  if (!fs.existsSync(entitlementsPath)) {
+    console.log('⚠️ Entitlements file not found, skipping hardened runtime fix');
+    return;
+  }
+  
+  try {
+    // Find and sign all helper apps
+    const helperApps = execSync(`find "${appBundlePath}" -name "*.app" -type d ! -path "${appBundlePath}"`, { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+    
+    for (const helperApp of helperApps) {
+      console.log(`  Signing helper: ${path.basename(helperApp)}`);
+      execSync(`codesign --force --deep --options runtime --entitlements "${entitlementsPath}" --sign "${cscName}" "${helperApp}"`, { stdio: 'inherit' });
+    }
+    
+    // Find and sign all frameworks
+    const frameworks = execSync(`find "${appBundlePath}" -name "*.framework" -type d`, { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+    
+    for (const framework of frameworks) {
+      console.log(`  Signing framework: ${path.basename(framework)}`);
+      execSync(`codesign --force --deep --options runtime --entitlements "${entitlementsPath}" --sign "${cscName}" "${framework}"`, { stdio: 'inherit' });
+    }
+    
+    // Sign other executables
+    const executables = execSync(`find "${appBundlePath}" -type f -perm +111 ! -name "*.dylib" ! -name "*.so" | xargs file | grep "Mach-O" | cut -d: -f1`, { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+    
+    for (const executable of executables) {
+      console.log(`  Signing executable: ${path.basename(executable)}`);
+      try {
+        execSync(`codesign --force --options runtime --entitlements "${entitlementsPath}" --sign "${cscName}" "${executable}"`, { stdio: 'inherit' });
+      } catch (e) {
+        // Some executables might fail, continue
+      }
+    }
+    
+    // Sign the main app last
+    console.log(`  Signing main app: ${path.basename(appBundlePath)}`);
+    execSync(`codesign --force --deep --options runtime --entitlements "${entitlementsPath}" --sign "${cscName}" "${appBundlePath}"`, { stdio: 'inherit' });
+    
+    // Verify hardened runtime
+    const verifyOutput = execSync(`codesign -dvvv "${appBundlePath}" 2>&1`, { encoding: 'utf8' });
+    if (verifyOutput.includes('flags=') && verifyOutput.includes('runtime')) {
+      console.log('✅ Hardened runtime applied successfully');
+    } else {
+      console.log('⚠️ Hardened runtime may not be applied correctly');
+    }
+  } catch (error) {
+    console.error('❌ Error applying hardened runtime:', error.message);
+  }
 };

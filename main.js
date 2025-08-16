@@ -367,6 +367,17 @@ ipcMain.handle('remove-hook', async (event, hookEvent, index) => {
   }
 });
 
+ipcMain.handle('generate-hook-command', async (event, hookId, params) => {
+  console.log('IPC: generate-hook-command called', hookId, params);
+  try {
+    const command = hooksManager.generateHookCommand(hookId, params);
+    return { success: true, data: command };
+  } catch (error) {
+    console.error('Error generating hook command:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('test-hook', async (event, hookId, params) => {
   console.log('IPC: test-hook called', hookId, params);
   try {
