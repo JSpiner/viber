@@ -801,41 +801,15 @@ class NowManager {
     
     console.log('prepareFiveHourData - using twelveHourData:', allData.length, 'items');
     
-    // Determine the actual time range of the data
-    let startTime, endTime;
-    
-    if (allData.length > 0) {
-      // Find the actual time range of the data
-      const times = allData.map(item => new Date(item.timestamp).getTime());
-      const minTime = Math.min(...times);
-      const maxTime = Math.max(...times);
-      
-      // Use the actual data range, extended to 12 hours if less
-      startTime = new Date(minTime);
-      endTime = new Date(maxTime);
-      
-      // Ensure we show at least 12 hours
-      const rangeMs = endTime - startTime;
-      const twelveHoursMs = 12 * 60 * 60 * 1000;
-      
-      if (rangeMs < twelveHoursMs) {
-        // Center the data in a 12-hour window
-        const padding = (twelveHoursMs - rangeMs) / 2;
-        startTime = new Date(startTime.getTime() - padding);
-        endTime = new Date(endTime.getTime() + padding);
-      }
-    } else {
-      // No data, show the last 12 hours from now
-      endTime = now;
-      startTime = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-    }
-    
-    // Round start time down to the nearest hour
-    startTime = new Date(startTime);
+    // Fixed time range: 12 hours ago to now + 1 hour (rounded to hour)
+    // Start time: 12 hours ago from now, rounded down to hour
+    const startTime = new Date(now.getTime() - 12 * 60 * 60 * 1000);
     startTime.setMinutes(0, 0, 0);
     
-    // Adjust end time to be exactly 12 hours from start
-    endTime = new Date(startTime.getTime() + 12 * 60 * 60 * 1000);
+    // End time: current time + 1 hour, rounded down to hour
+    const endTime = new Date(now);
+    endTime.setHours(endTime.getHours() + 1);
+    endTime.setMinutes(0, 0, 0);
     
     console.log('prepareFiveHourData - time range:', {
       startTime: startTime.toISOString(),
@@ -844,8 +818,9 @@ class NowManager {
     });
     
     // Create 30-minute intervals
-    const intervals = 24; // 12 hours / 30 minutes = 24 intervals
+    const rangeMs = endTime - startTime;
     const intervalMs = 30 * 60 * 1000; // 30 minutes in ms
+    const intervals = Math.ceil(rangeMs / intervalMs); // Calculate actual number of intervals
     
     // Generate intervals based on the actual time range
     for (let i = 0; i < intervals; i++) {

@@ -8,13 +8,6 @@ class HooksManager {
   }
 
   initializeEventListeners() {
-    // Control buttons
-    document.getElementById('viewInstalledHooks').addEventListener('click', () => this.showInstalledView());
-    document.getElementById('viewRawJson').addEventListener('click', () => this.showRawJsonView());
-    document.getElementById('refreshHooks').addEventListener('click', () => {
-      this.loadHooks();
-    });
-    
     // Raw JSON view buttons
     document.getElementById('copyJsonBtn').addEventListener('click', () => this.copyJsonToClipboard());
     document.getElementById('closeJsonView').addEventListener('click', () => this.hideRawJsonView());
@@ -204,6 +197,8 @@ class HooksManager {
     
     if (hook.id === 'mac-os-claude-done-notification') {
       dialog.innerHTML = this.getMacOSConfigDialog(hook);
+    } else if (hook.id === 'osascript-notification') {
+      dialog.innerHTML = this.getOsascriptConfigDialog(hook);
     } else if (hook.id === 'web-hook-claude-done-notification') {
       dialog.innerHTML = this.getWebhookConfigDialog(hook);
     }
@@ -229,6 +224,50 @@ class HooksManager {
           <div class="form-group">
             <label>Sound:</label>
             <select id="notifSound" class="form-select">
+              <option value="Glass">Glass</option>
+              <option value="Ping">Ping</option>
+              <option value="Pop">Pop</option>
+              <option value="Basso">Basso</option>
+              <option value="Blow">Blow</option>
+              <option value="Bottle">Bottle</option>
+              <option value="Frog">Frog</option>
+              <option value="Funk">Funk</option>
+              <option value="Hero">Hero</option>
+              <option value="Morse">Morse</option>
+              <option value="Purr">Purr</option>
+              <option value="Sosumi">Sosumi</option>
+              <option value="Submarine">Submarine</option>
+              <option value="Tink">Tink</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="hooksManager.testConfiguration('${hook.id}')">Test Hook</button>
+          <button class="btn-secondary" onclick="hooksManager.closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="hooksManager.saveHookConfiguration('${hook.id}')">Save</button>
+        </div>
+      </div>
+    `;
+  }
+
+  getOsascriptConfigDialog(hook) {
+    return `
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Configure: ${hook.name}</h3>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Notification Title:</label>
+            <input type="text" id="osascriptTitle" value="Claude Code" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Notification Message:</label>
+            <input type="text" id="osascriptMessage" value="Task completed" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>Sound:</label>
+            <select id="osascriptSound" class="form-select">
               <option value="Glass">Glass</option>
               <option value="Ping">Ping</option>
               <option value="Pop">Pop</option>
@@ -282,6 +321,10 @@ class HooksManager {
       params.title = document.getElementById('notifTitle').value;
       params.message = document.getElementById('notifMessage').value;
       params.sound = document.getElementById('notifSound').value;
+    } else if (hookId === 'osascript-notification') {
+      params.title = document.getElementById('osascriptTitle').value;
+      params.message = document.getElementById('osascriptMessage').value;
+      params.sound = document.getElementById('osascriptSound').value;
     } else if (hookId === 'web-hook-claude-done-notification') {
       params.webhookUrl = document.getElementById('webhookUrl').value;
       
@@ -312,6 +355,10 @@ class HooksManager {
       params.title = document.getElementById('notifTitle').value;
       params.message = document.getElementById('notifMessage').value;
       params.sound = document.getElementById('notifSound').value;
+    } else if (hookId === 'osascript-notification') {
+      params.title = document.getElementById('osascriptTitle').value;
+      params.message = document.getElementById('osascriptMessage').value;
+      params.sound = document.getElementById('osascriptSound').value;
     } else if (hookId === 'web-hook-claude-done-notification') {
       params.webhookUrl = document.getElementById('webhookUrl').value;
       params.message = document.getElementById('webhookMessage').value;
@@ -321,6 +368,13 @@ class HooksManager {
       const result = await window.electronAPI.testHook(hookId, params);
       if (result.success) {
         this.showSuccess('Test completed successfully');
+        
+        // Show permission reminder for macOS notifications
+        if (hookId === 'mac-os-claude-done-notification' || hookId === 'osascript-notification') {
+          setTimeout(() => {
+            this.showPermissionReminder(hookId);
+          }, 500);
+        }
       } else {
         this.showError('Test failed: ' + (result.error || 'Unknown error'));
       }
@@ -354,6 +408,20 @@ class HooksManager {
         this.showSuccess('Hook test completed successfully');
         if (result.data.output) {
           console.log('Hook output:', result.data.output);
+        }
+        
+        // Check if this is a macOS notification hook
+        const isMacOSNotification = hook.command && (
+          hook.command.includes('terminal-notifier') || 
+          hook.command.includes('osascript') && hook.command.includes('display notification')
+        );
+        
+        if (isMacOSNotification) {
+          setTimeout(() => {
+            const hookType = hook.command.includes('terminal-notifier') ? 
+              'mac-os-claude-done-notification' : 'osascript-notification';
+            this.showPermissionReminder(hookType);
+          }, 500);
         }
       } else {
         this.showError('Hook test failed: ' + (result.error || 'Unknown error'));
@@ -455,6 +523,60 @@ class HooksManager {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  showPermissionReminder(hookId) {
+    const appName = hookId === 'mac-os-claude-done-notification' ? 'terminal-notifier' : 'Viber';
+    const message = `Not seeing notifications? Please allow ${appName} in System Settings > Notifications > Application Notifications.`;
+    
+    // Create a temporary notification element
+    const notification = document.createElement('div');
+    notification.className = 'permission-reminder';
+    notification.innerHTML = `
+      <div style="position: fixed; top: 20px; right: 20px; background: #2a2a2a; border: 1px solid #444; 
+                  border-radius: 8px; padding: 15px 20px; max-width: 400px; z-index: 10000; 
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: slideIn 0.3s ease-out;">
+        <div style="display: flex; align-items: start; gap: 10px;">
+          <span style="font-size: 20px;">ℹ️</span>
+          <div>
+            <p style="margin: 0; color: #e0e0e0; font-size: 14px; line-height: 1.5;">${message}</p>
+            <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                    style="margin-top: 10px; padding: 4px 12px; background: #444; border: none; 
+                           border-radius: 4px; color: #e0e0e0; cursor: pointer; font-size: 12px;">
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Add CSS animation if not already present
+    if (!document.querySelector('#permissionReminderStyles')) {
+      const style = document.createElement('style');
+      style.id = 'permissionReminderStyles';
+      style.textContent = `
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, 10000);
   }
 
   showSuccess(message) {

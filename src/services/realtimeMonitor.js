@@ -3,8 +3,9 @@ const path = require('path');
 const os = require('os');
 
 class RealtimeMonitor {
-  constructor() {
+  constructor(settingsManager = null) {
     this.claudeDir = path.join(os.homedir(), '.claude', 'projects');
+    this.settingsManager = settingsManager;
   }
 
   async getRecentUsage() {
@@ -289,6 +290,11 @@ class RealtimeMonitor {
   }
 
   calculateWindowUsage(allUsage, windowStart, isWeekly = false) {
+    // Get subscription limits based on current tier
+    const tier = this.settingsManager?.getSubscriptionTier() || 'pro';
+    const limits = this.getSubscriptionLimits()[tier] || this.getSubscriptionLimits()['pro'];
+    const defaultLimit = isWeekly ? limits.weeklyTokens : limits.fiveHourTokens;
+    
     // Check if there's any recent usage data
     if (allUsage.length === 0) {
       return {
@@ -296,7 +302,7 @@ class RealtimeMonitor {
         sessionStart: null,
         totalTokens: 0,
         effectiveTotal: 0,
-        limit: isWeekly ? 608000 : 38000, // Default pro limits
+        limit: defaultLimit,
         resetTime: null,
         rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
         messageCount: 0,
@@ -316,7 +322,7 @@ class RealtimeMonitor {
           sessionStart: null,
           totalTokens: 0,
           effectiveTotal: 0,
-          limit: 38000, // Default pro limits
+          limit: defaultLimit,
           resetTime: null,
           rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
           messageCount: 0,
@@ -450,8 +456,9 @@ class RealtimeMonitor {
             byModel[item.model].messages += 1;
           });
           
-          const limits = this.getSubscriptionLimits();
-          const limit = limits.pro.fiveHourTokens;
+          const tier = this.settingsManager?.getSubscriptionTier() || 'pro';
+          const limits = this.getSubscriptionLimits()[tier] || this.getSubscriptionLimits()['pro'];
+          const limit = limits.fiveHourTokens;
           
           console.log(`New session after expiry: ${actualSessionStart.toISOString()}`);
           
@@ -474,7 +481,7 @@ class RealtimeMonitor {
             sessionStart: null,
             totalTokens: 0,
             effectiveTotal: 0,
-            limit: 38000,
+            limit: defaultLimit,
             resetTime: null,
             rawTotals: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, total: 0 },
             messageCount: 0,
@@ -516,8 +523,9 @@ class RealtimeMonitor {
         byModel[item.model].messages += 1;
       });
       
-      const limits = this.getSubscriptionLimits();
-      const limit = limits.pro.fiveHourTokens;
+      const tier = this.settingsManager?.getSubscriptionTier() || 'pro';
+      const limits = this.getSubscriptionLimits()[tier] || this.getSubscriptionLimits()['pro'];
+      const limit = limits.fiveHourTokens;
       
       console.log(`Active session: ${sessionStart.toISOString()} to ${sessionEnd.toISOString()}`);
       console.log(`Tokens used: ${totalTokens} / ${limit}`);
@@ -612,14 +620,9 @@ class RealtimeMonitor {
       rawTokens: rawTotals.total
     });
 
-    // Get subscription limits (defaulting to Pro tier)
-    const limits = {
-      pro: { fiveHourTokens: 38000, weeklyTokens: 608000 },
-      max5x: { fiveHourTokens: 176000, weeklyTokens: 2816000 },
-      max20x: { fiveHourTokens: 440000, weeklyTokens: 5632000 }
-    };
-    
-    const tierLimits = limits.pro; // Default to pro tier
+    // Get subscription limits based on current tier
+    const currentTier = this.settingsManager?.getSubscriptionTier() || 'pro';
+    const tierLimits = this.getSubscriptionLimits()[currentTier] || this.getSubscriptionLimits()['pro'];
     const limit = isWeekly ? tierLimits.weeklyTokens : tierLimits.fiveHourTokens;
     
     const resetTime = isWeekly

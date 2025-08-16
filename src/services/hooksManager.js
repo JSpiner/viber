@@ -14,13 +14,24 @@ class HooksManager {
     return [
       {
         id: 'mac-os-claude-done-notification',
-        name: 'macOS Done Notification',
+        name: 'macOS Done Notification (terminal-notifier',
         description: 'Display native macOS notifications when Claude completes a task',
         category: 'notification',
         prerequisites: ['terminal-notifier'],
         defaultConfig: {
           event: 'afterApiResponseEnd',
           command: "terminal-notifier -title 'Claude Code' -message 'Task completed' -sound Glass"
+        }
+      },
+      {
+        id: 'osascript-notification',
+        name: 'macOS Native Notification (osascript)',
+        description: 'Display native macOS notifications using built-in osascript (no additional tools required)',
+        category: 'notification',
+        prerequisites: [],
+        defaultConfig: {
+          event: 'afterApiResponseEnd',
+          command: "osascript -e 'display notification \"Task completed\" with title \"Claude Code\" sound name \"Glass\"'"
         }
       },
       {
@@ -136,6 +147,18 @@ class HooksManager {
         }
         if (params.sound) {
           command = command.replace(/Glass/, params.sound);
+        }
+        break;
+
+      case 'osascript-notification':
+        if (params.title) {
+          command = command.replace(/\"Claude Code\"/, `\"${params.title}\"`);
+        }
+        if (params.message) {
+          command = command.replace(/\"Task completed\"/, `\"${params.message}\"`);
+        }
+        if (params.sound) {
+          command = command.replace(/\"Glass\"/, `\"${params.sound}\"`);
         }
         break;
 

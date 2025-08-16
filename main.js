@@ -83,7 +83,7 @@ function createWindow() {
   
   // Initialize services
   settingsManager = new SettingsManager();
-  realtimeMonitor = new RealtimeMonitor();
+  realtimeMonitor = new RealtimeMonitor(settingsManager);
   claudeSettingsManager = new ClaudeSettingsManager();
   hooksManager = new HooksManager();
   agentsManager = new AgentsManager();
@@ -170,7 +170,10 @@ ipcMain.handle('load-recent-usage', async () => {
   console.log('IPC: load-recent-usage called');
   try {
     if (!realtimeMonitor) {
-      realtimeMonitor = new RealtimeMonitor();
+      if (!settingsManager) {
+        settingsManager = new SettingsManager();
+      }
+      realtimeMonitor = new RealtimeMonitor(settingsManager);
     }
     
     console.log('Loading recent usage data...');

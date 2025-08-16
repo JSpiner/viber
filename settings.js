@@ -99,6 +99,69 @@ function showSaveError() {
   }, 2000);
 }
 
+// Test alert functionality
+async function testAlert() {
+  try {
+    // Test native notification
+    const notification = new Notification('Viber Alert Test', {
+      body: `Alert threshold reached: ${currentSettings.statusBar.alertThreshold}%`,
+      icon: 'resources/icon.png'
+    });
+    
+    // Show success message
+    showTestResult('Alert test successful!');
+  } catch (error) {
+    // Check notification permission
+    if (Notification.permission === 'denied') {
+      showTestResult('알림이 나오지 않으시나요?\nSystem Preferences > Notifications에서 Viber의 알림을 허용해주세요.', true);
+    } else if (Notification.permission === 'default') {
+      // Request permission
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        testAlert(); // Retry after permission granted
+      } else {
+        showTestResult('알림이 나오지 않으시나요?\nSystem Preferences > Notifications에서 Viber의 알림을 허용해주세요.', true);
+      }
+    } else {
+      showTestResult('Error testing alert: ' + error.message, true);
+    }
+  }
+}
+
+// Show test result message
+function showTestResult(message, isError = false) {
+  // Create or update message element
+  let messageEl = document.getElementById('alertTestMessage');
+  if (!messageEl) {
+    messageEl = document.createElement('div');
+    messageEl.id = 'alertTestMessage';
+    messageEl.style.cssText = `
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre-line;
+    `;
+    document.getElementById('testAlert').parentElement.appendChild(messageEl);
+  }
+  
+  messageEl.textContent = message;
+  messageEl.style.backgroundColor = isError ? 'rgba(255, 59, 48, 0.1)' : 'rgba(52, 199, 89, 0.1)';
+  messageEl.style.color = isError ? '#ff3b30' : '#34c759';
+  messageEl.style.border = `1px solid ${isError ? 'rgba(255, 59, 48, 0.3)' : 'rgba(52, 199, 89, 0.3)'}`;
+  
+  // Auto-hide success messages after 3 seconds
+  if (!isError) {
+    setTimeout(() => {
+      messageEl.style.display = 'none';
+    }, 3000);
+  } else {
+    // Keep error messages visible
+    messageEl.style.display = 'block';
+  }
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
   // Status bar enabled toggle
@@ -137,6 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Save button
   document.getElementById('saveSettings').addEventListener('click', saveSettings);
+  
+  // Test alert button
+  document.getElementById('testAlert').addEventListener('click', testAlert);
   
   // Initialize settings
   initSettings();
