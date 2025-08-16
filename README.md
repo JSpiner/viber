@@ -6,6 +6,10 @@
 
 A macOS desktop application for analyzing and monitoring Claude conversation data with real-time token usage tracking.
 
+```
+`brew install --cask jspiner/viber/viber`
+```
+
 [Viber Install Guide](#Installation)
 
 
@@ -72,45 +76,11 @@ Optional macOS status bar icon showing your current usage at a glance.
 
 # Installation
 
-### Option 1: Download Pre-built Release (Recommended)
-
-#### English Instructions
+### Option 1: Homebrew (Recommended)
 
 1. **Download the App**
-   - Go to the [Releases](https://github.com/JSpiner/viber/releases) page
-   - Download the latest `.zip` file for your Mac architecture (Intel or Apple Silicon)
+   - just run `brew install --cask jspiner/viber/viber`
 
-2. **Extract and Run**
-   - Extract the downloaded ZIP file
-   - Double-click the `Viber.app` to launch
-
-3. **Handle Security Warning (macOS Gatekeeper)**
-   - On modern macOS versions, you may see an "Untrusted App" security warning
-   - **Don't panic!** This is normal for apps not distributed through the App Store
-   - Close the warning dialog
-   - Go to **System Preferences/Settings** → **Privacy & Security**
-   - Scroll down to the **Security** section
-   - You'll see a message about Viber being blocked - click **"Allow Anyway"** or **"Open Anyway"**
-   - Try launching Viber again - it should now open successfully
-
-#### 한국어 설치 가이드
-
-1. **앱 다운로드**
-   - [Releases](https://github.com/JSpiner/viber/releases) 페이지로 이동
-   - 최신 `.zip` 파일을 다운로드 (Intel 또는 Apple Silicon 맥 아키텍처에 맞게)
-
-2. **압축 해제 및 실행**
-   - 다운로드한 ZIP 파일의 압축을 해제
-   - `Viber.app`을 더블클릭하여 실행
-
-3. **보안 경고 처리 (macOS 게이트키퍼)**
-   - 최신 macOS에서는 "신뢰할 수 없는 앱"이라는 보안 경고가 나타날 수 있습니다
-   - **당황하지 마세요!** 앱스토어를 통해 배포되지 않은 앱에서는 정상적인 현상입니다
-   - 경고 팝업을 닫습니다
-   - **시스템 환경설정/설정** → **개인정보 보호 및 보안**으로 이동
-   - 하단으로 스크롤하여 **보안** 섹션을 찾습니다
-   - Viber가 차단되었다는 메시지가 보이면 **"확인 없이 열기"** 또는 **"열기"** 버튼을 클릭
-   - Viber를 다시 실행하면 정상적으로 열립니다
 
 ### Option 2: Build from Source (For Developers)
 
