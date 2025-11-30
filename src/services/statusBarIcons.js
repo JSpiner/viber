@@ -11,7 +11,10 @@ class StatusBarIcons {
       const originalIcon = nativeImage.createFromPath(this.iconPath);
       // Resize to 16x16 for status bar
       this.baseIcon = originalIcon.resize({ width: 16, height: 16 });
-      this.baseIcon.setTemplateImage(true);
+      // Template images are macOS-only (auto-adjust colors based on dark/light mode)
+      if (process.platform === 'darwin') {
+        this.baseIcon.setTemplateImage(true);
+      }
       console.log('Base icon loaded:', !this.baseIcon.isEmpty());
     } catch (error) {
       console.error('Error loading base icon:', error);

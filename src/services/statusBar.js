@@ -39,12 +39,33 @@ class StatusBar {
       console.log('Tray created:', this.tray ? 'success' : 'failed');
       
       this.tray.setToolTip('Viber - Token Usage Monitor');
-      
-      // Set up click handler
-      this.tray.on('click', () => {
-        this.isMenuOpen = true;
-        this.updateMenu();
-      });
+
+      // Set up click handlers based on platform
+      const isMac = process.platform === 'darwin';
+
+      if (isMac) {
+        // macOS: Click shows menu (standard macOS behavior)
+        this.tray.on('click', () => {
+          this.isMenuOpen = true;
+          this.updateMenu();
+        });
+      } else {
+        // Windows: Left-click opens/focuses window, right-click shows menu
+        this.tray.on('click', () => {
+          if (this.mainWindow) {
+            if (this.mainWindow.isVisible()) {
+              this.mainWindow.focus();
+            } else {
+              this.mainWindow.show();
+            }
+          }
+        });
+
+        this.tray.on('right-click', () => {
+          this.isMenuOpen = true;
+          this.updateMenu();
+        });
+      }
       
       // Start periodic updates
       this.startUpdates();

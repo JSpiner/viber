@@ -3,20 +3,36 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 exports.default = async function(context) {
-  console.log('🧹 Running safe after-pack cleanup and hardened runtime fix...');
-  
-  const appPath = path.join(
-    context.appOutDir,
-    `${context.packager.appInfo.productName}.app`,
-    'Contents',
-    'Resources',
-    'app'
-  );
-  
+  const platform = context.electronPlatformName;
+  console.log(`🧹 Running safe after-pack cleanup for ${platform}...`);
+
+  // Determine app path based on platform
+  let appPath;
+  if (platform === 'darwin') {
+    appPath = path.join(
+      context.appOutDir,
+      `${context.packager.appInfo.productName}.app`,
+      'Contents',
+      'Resources',
+      'app'
+    );
+  } else if (platform === 'win32') {
+    appPath = path.join(
+      context.appOutDir,
+      'resources',
+      'app'
+    );
+  }
+
   const nodeModulesPath = path.join(appPath, 'node_modules');
-  
+
   if (!fs.existsSync(nodeModulesPath)) {
     console.log('node_modules not found in app bundle, skipping cleanup');
+    // Skip macOS code signing for non-darwin platforms
+    if (platform !== 'darwin') {
+      console.log('✅ After-pack complete (non-macOS platform)');
+      return;
+    }
     return;
   }
   
@@ -128,7 +144,13 @@ exports.default = async function(context) {
   
   const savedMB = (totalSaved / 1024 / 1024).toFixed(2);
   console.log(`✅ Safe after-pack cleanup complete. Saved ${savedMB} MB`);
-  
+
+  // macOS-only: Apply hardened runtime to all executables
+  if (platform !== 'darwin') {
+    console.log('✅ After-pack complete (skipping macOS code signing)');
+    return;
+  }
+
   // Apply hardened runtime to all executables
   console.log('🔐 Applying hardened runtime to all executables...');
   

@@ -14,7 +14,11 @@
     "dist:dev": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
     "dist:optimize": "node build-optimize-safe.js",
     "dist:prod": "./build-prod.sh",
-    "dist:small": "./build-small.sh"
+    "dist:small": "./build-small.sh",
+    "dist:win": "electron-builder --win",
+    "dist:win:nsis": "electron-builder --win nsis",
+    "dist:win:portable": "electron-builder --win portable",
+    "dist:win:prod": "node build-win.js"
   },
   "keywords": [],
   "author": "",

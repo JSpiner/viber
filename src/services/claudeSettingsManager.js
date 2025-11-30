@@ -216,16 +216,33 @@ class ClaudeSettingsManager {
     if (!command || typeof command !== 'string') {
       return 'Custom Script';
     }
-    
-    if (command.includes('terminal-notifier')) {
+
+    // macOS notifications
+    if (command.includes('terminal-notifier') ||
+        command.includes('osascript') ||
+        command.includes('display notification')) {
       return 'macOS Notification';
-    } else if (command.includes('curl') && (command.includes('http://') || command.includes('https://'))) {
-      return 'Webhook';
-    } else if (command.includes('echo') || command.includes('cat')) {
-      return 'File Logging';
-    } else {
-      return 'Custom Script';
     }
+
+    // Windows notifications
+    if (command.includes('powershell') &&
+        (command.includes('ToastNotification') ||
+         command.includes('BalloonTip') ||
+         command.includes('MessageBox'))) {
+      return 'Windows Notification';
+    }
+
+    // Webhook
+    if (command.includes('curl') && (command.includes('http://') || command.includes('https://'))) {
+      return 'Webhook';
+    }
+
+    // File logging
+    if (command.includes('echo') || command.includes('cat') || command.includes('>>')) {
+      return 'File Logging';
+    }
+
+    return 'Custom Script';
   }
 
   /**

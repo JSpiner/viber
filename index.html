@@ -525,18 +525,18 @@
         </div>
         <div class="panel-body">
           <div class="settings-container">
-            <!-- Status Bar Settings -->
+            <!-- Status Bar / System Tray Settings -->
             <div class="settings-section">
-              <h3>Status Bar</h3>
+              <h3 id="statusBarSectionTitle">Status Bar</h3>
               <div class="settings-group">
                 <div class="setting-item">
                   <label class="setting-label">
                     <input type="checkbox" id="statusBarEnabled" class="setting-checkbox">
-                    <span>Show in status bar</span>
+                    <span id="statusBarEnabledLabel">Show in status bar</span>
                   </label>
-                  <p class="setting-description">Display token usage monitor in macOS menu bar</p>
+                  <p class="setting-description" id="statusBarDescription">Display token usage monitor in system tray</p>
                 </div>
-                
+
                 <div class="setting-item">
                   <label class="setting-label" for="displayMode">Display mode</label>
                   <select id="displayMode" class="setting-select status-bar-setting">
@@ -544,7 +544,7 @@
                     <option value="compact">Compact (Icon, Tokens/min)</option>
                     <option value="icon-only">Icon only</option>
                   </select>
-                  <p class="setting-description">Choose what to display in the status bar</p>
+                  <p class="setting-description" id="displayModeDescription">Choose what to display in the status bar</p>
                 </div>
                 
                 <div class="setting-item">

@@ -43,6 +43,29 @@
       "arch": "universal"
     }
   },
+  "win": {
+    "icon": "resources/icon.png",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Viber"
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-portable.exe"
+  },
   "compression": "maximum",
   "npmRebuild": false,
   "nodeGypRebuild": false,
