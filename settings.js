@@ -10,9 +10,42 @@ let currentSettings = {
   }
 };
 
+// Platform-specific UI text
+const platformText = {
+  statusBarSectionTitle: {
+    darwin: 'Menu Bar',
+    win32: 'System Tray'
+  },
+  statusBarEnabledLabel: {
+    darwin: 'Show in menu bar',
+    win32: 'Show in system tray'
+  },
+  statusBarDescription: {
+    darwin: 'Display token usage monitor in macOS menu bar',
+    win32: 'Display token usage monitor in Windows system tray'
+  },
+  displayModeDescription: {
+    darwin: 'Choose what to display in the menu bar',
+    win32: 'Choose what to display in the system tray'
+  },
+  notificationPermissionError: {
+    darwin: 'Not receiving notifications?\nPlease enable notifications for Viber in System Preferences > Notifications.',
+    win32: 'Not receiving notifications?\nPlease enable notifications for Viber in Windows Settings > System > Notifications.'
+  }
+};
+
+// Get platform-specific text
+function getPlatformText(key) {
+  const platform = window.electronAPI?.platform || 'darwin';
+  return platformText[key]?.[platform] || platformText[key]?.darwin || '';
+}
+
 // Initialize settings when the page loads
 async function initSettings() {
   try {
+    // Apply platform-specific text
+    applyPlatformText();
+
     // Load current settings from main process
     const settings = await window.electronAPI.loadSettings();
     if (settings) {
@@ -22,6 +55,23 @@ async function initSettings() {
   } catch (error) {
     console.error('Error loading settings:', error);
   }
+}
+
+// Apply platform-specific text to UI elements
+function applyPlatformText() {
+  const elementsToUpdate = [
+    'statusBarSectionTitle',
+    'statusBarEnabledLabel',
+    'statusBarDescription',
+    'displayModeDescription'
+  ];
+
+  elementsToUpdate.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.textContent = getPlatformText(id);
+    }
+  });
 }
 
 // Update UI to reflect current settings
@@ -107,20 +157,21 @@ async function testAlert() {
       body: `Alert threshold reached: ${currentSettings.statusBar.alertThreshold}%`,
       icon: 'resources/icon.png'
     });
-    
+
     // Show success message
     showTestResult('Alert test successful!');
   } catch (error) {
     // Check notification permission
+    const permissionErrorMsg = getPlatformText('notificationPermissionError');
     if (Notification.permission === 'denied') {
-      showTestResult('알림이 나오지 않으시나요?\nSystem Preferences > Notifications에서 Viber의 알림을 허용해주세요.', true);
+      showTestResult(permissionErrorMsg, true);
     } else if (Notification.permission === 'default') {
       // Request permission
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         testAlert(); // Retry after permission granted
       } else {
-        showTestResult('알림이 나오지 않으시나요?\nSystem Preferences > Notifications에서 Viber의 알림을 허용해주세요.', true);
+        showTestResult(permissionErrorMsg, true);
       }
     } else {
       showTestResult('Error testing alert: ' + error.message, true);

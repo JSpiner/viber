@@ -9,14 +9,18 @@ class HooksManager {
 
   /**
    * Get list of available hooks with their configurations
+   * Filters hooks based on current platform
    */
   getAvailableHooks() {
-    return [
+    const platform = process.platform;
+
+    const allHooks = [
       {
         id: 'mac-os-claude-done-notification',
-        name: 'macOS Done Notification (terminal-notifier',
+        name: 'macOS Done Notification (terminal-notifier)',
         description: 'Display native macOS notifications when Claude completes a task',
         category: 'notification',
+        platform: 'darwin',
         prerequisites: ['terminal-notifier'],
         defaultConfig: {
           event: 'afterApiResponseEnd',
@@ -28,6 +32,7 @@ class HooksManager {
         name: 'macOS Native Notification (osascript)',
         description: 'Display native macOS notifications using built-in osascript (no additional tools required)',
         category: 'notification',
+        platform: 'darwin',
         prerequisites: [],
         defaultConfig: {
           event: 'afterApiResponseEnd',
@@ -35,10 +40,35 @@ class HooksManager {
         }
       },
       {
+        id: 'windows-toast-notification',
+        name: 'Windows Toast Notification',
+        description: 'Display native Windows toast notifications using PowerShell (no additional tools required)',
+        category: 'notification',
+        platform: 'win32',
+        prerequisites: [],
+        defaultConfig: {
+          event: 'afterApiResponseEnd',
+          command: "powershell -Command \"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; $template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02; $xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($template); $xml.GetElementsByTagName('text')[0].AppendChild($xml.CreateTextNode('Claude Code')) | Out-Null; $xml.GetElementsByTagName('text')[1].AppendChild($xml.CreateTextNode('Task completed')) | Out-Null; $toast = [Windows.UI.Notifications.ToastNotification]::new($xml); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Claude Code').Show($toast)\""
+        }
+      },
+      {
+        id: 'windows-balloon-notification',
+        name: 'Windows Balloon Notification',
+        description: 'Display Windows balloon notifications using PowerShell (simpler, works on older Windows)',
+        category: 'notification',
+        platform: 'win32',
+        prerequisites: [],
+        defaultConfig: {
+          event: 'afterApiResponseEnd',
+          command: "powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; $notify = New-Object System.Windows.Forms.NotifyIcon; $notify.Icon = [System.Drawing.SystemIcons]::Information; $notify.Visible = $true; $notify.ShowBalloonTip(5000, 'Claude Code', 'Task completed', [System.Windows.Forms.ToolTipIcon]::Info); Start-Sleep -Seconds 5; $notify.Dispose()\""
+        }
+      },
+      {
         id: 'web-hook-claude-done-notification',
         name: 'Webhook Notification',
         description: 'Send webhook notifications to external services (Slack-compatible)',
         category: 'notification',
+        platform: 'all',
         prerequisites: ['curl'],
         defaultConfig: {
           event: 'afterApiResponseEnd',
@@ -46,6 +76,11 @@ class HooksManager {
         }
       }
     ];
+
+    // Filter hooks based on current platform
+    return allHooks.filter(hook =>
+      hook.platform === 'all' || hook.platform === platform
+    );
   }
 
   /**
@@ -55,7 +90,10 @@ class HooksManager {
    */
   async checkPrerequisite(command) {
     return new Promise((resolve) => {
-      exec(`which ${command}`, (error) => {
+      const isWindows = process.platform === 'win32';
+      const checkCommand = isWindows ? `where ${command}` : `which ${command}`;
+
+      exec(checkCommand, (error) => {
         resolve(!error);
       });
     });
@@ -171,6 +209,24 @@ class HooksManager {
           command = command.replace(/\"Claude Code: Task completed\"/, `"${text}"`);
         }
         break;
+
+      case 'windows-toast-notification':
+        if (params.title) {
+          command = command.replace(/'Claude Code'/, `'${params.title}'`);
+        }
+        if (params.message) {
+          command = command.replace(/'Task completed'/, `'${params.message}'`);
+        }
+        break;
+
+      case 'windows-balloon-notification':
+        if (params.title) {
+          command = command.replace(/'Claude Code'/, `'${params.title}'`);
+        }
+        if (params.message) {
+          command = command.replace(/'Task completed'/, `'${params.message}'`);
+        }
+        break;
     }
 
     return command;
@@ -185,12 +241,15 @@ class HooksManager {
       'terminal-notifier': {
         homebrew: 'brew install terminal-notifier',
         github: 'https://github.com/julienXX/terminal-notifier/releases',
-        manual: 'Download the latest release from GitHub and add to PATH'
+        manual: 'Download the latest release from GitHub and add to PATH',
+        note: 'macOS only - not available on Windows'
       },
       'curl': {
         homebrew: 'brew install curl',
-        apt: 'sudo apt-get install curl',
-        manual: 'curl is usually pre-installed on most systems'
+        winget: 'winget install curl',
+        chocolatey: 'choco install curl',
+        scoop: 'scoop install curl',
+        manual: 'Windows 10+ includes curl by default. For older versions, download from https://curl.se/windows/'
       }
     };
 

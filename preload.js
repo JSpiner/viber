@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Platform info
+  platform: process.platform,  // 'darwin', 'win32'
+  isMac: process.platform === 'darwin',
+  isWindows: process.platform === 'win32',
+
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   loadTokenUsage: () => ipcRenderer.invoke('load-token-usage'),
   loadRecentUsage: () => ipcRenderer.invoke('load-recent-usage'),

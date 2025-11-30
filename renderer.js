@@ -128,7 +128,7 @@ function showUpdateIndicator(updateInfo) {
   indicator.classList.remove('hidden');
   
   // Add tooltip
-  indicator.title = `현재: v${updateInfo.currentVersion}\n최신: v${updateInfo.latestVersion}\n클릭하여 다운로드`;
+  indicator.title = `Current: v${updateInfo.currentVersion}\nLatest: v${updateInfo.latestVersion}\nClick to download`;
 }
 
 // Listen for update available event from main process

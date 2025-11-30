@@ -9,14 +9,14 @@ class UpdateChecker {
     this.latestVersion = null;
     this.updateAvailable = false;
     this.lastCheckTime = null;
-    this.checkInterval = 24 * 60 * 60 * 1000; // 24시간
+    this.checkInterval = 24 * 60 * 60 * 1000; // 24 hours
     this.githubRepo = 'JSpiner/Viber';
     this.settingsManager = new SettingsManager();
     this.releaseUrl = null;
   }
 
   async init() {
-    // 마지막 체크 시간 불러오기
+    // Load last check time
     this.lastCheckTime = this.settingsManager.get('lastUpdateCheck');
     
     console.log('[UpdateChecker] Initialized');
@@ -24,13 +24,13 @@ class UpdateChecker {
     console.log(`[UpdateChecker] Last check time: ${this.lastCheckTime ? new Date(this.lastCheckTime).toLocaleString() : 'Never'}`);
     console.log('[UpdateChecker] Will check for updates in 30 seconds...');
     
-    // 초기 체크 (앱 시작 30초 후)
+    // Initial check (30 seconds after app start)
     setTimeout(() => {
       console.log('[UpdateChecker] Performing initial update check...');
       this.checkForUpdates();
     }, 30000);
     
-    // 주기적 체크 설정
+    // Set up periodic check
     this.startPeriodicCheck();
   }
 
@@ -45,7 +45,7 @@ class UpdateChecker {
   async checkForUpdates() {
     const now = Date.now();
     
-    // 마지막 체크로부터 24시간이 지나지 않았으면 스킵
+    // Skip if less than 24 hours since last check
     if (this.lastCheckTime && (now - this.lastCheckTime) < this.checkInterval) {
       const timeSinceLastCheck = (now - this.lastCheckTime) / 1000 / 60; // minutes
       const timeUntilNextCheck = (this.checkInterval - (now - this.lastCheckTime)) / 1000 / 60 / 60; // hours
@@ -80,7 +80,7 @@ class UpdateChecker {
           console.log(`[UpdateChecker] ✅ UPDATE AVAILABLE: v${this.currentVersion} -> v${latestVersion}`);
           console.log(`[UpdateChecker] Release URL: ${this.releaseUrl}`);
           
-          // 메인 윈도우에 업데이트 알림
+          // Notify main window of update
           this.notifyUpdate();
         } else if (semver.eq(latestVersion, this.currentVersion)) {
           console.log(`[UpdateChecker] ✓ Already on latest version (v${this.currentVersion})`);
@@ -93,7 +93,7 @@ class UpdateChecker {
         console.log('[UpdateChecker] No release data found');
       }
       
-      // 마지막 체크 시간 저장
+      // Save last check time
       this.lastCheckTime = now;
       this.settingsManager.set('lastUpdateCheck', now);
       console.log(`[UpdateChecker] Check completed at ${new Date(now).toLocaleString()}`);
@@ -156,7 +156,7 @@ class UpdateChecker {
   }
 
   notifyUpdate() {
-    // 메인 윈도우에 IPC로 업데이트 알림
+    // Send update notification to main window via IPC
     if (global.mainWindow && global.mainWindow.webContents) {
       console.log('[UpdateChecker] Sending update notification to renderer process');
       global.mainWindow.webContents.send('update-available', {
